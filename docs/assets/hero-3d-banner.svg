@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="620" viewBox="0 0 1600 620" role="img" aria-labelledby="t d">
+<title id="t">VRuntime Inspector — Software X-Ray</title><desc id="d">A glowing isometric transparent cube exposing software layers, code, binary data, and connected nodes.</desc>
+<defs>
+ <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#07111f"/><stop offset=".55" stop-color="#101d32"/><stop offset="1" stop-color="#070c17"/></linearGradient>
+ <linearGradient id="cyan" x2="1" y2="1"><stop stop-color="#8df7ff" stop-opacity=".85"/><stop offset="1" stop-color="#2784ff" stop-opacity=".12"/></linearGradient>
+ <linearGradient id="amber" x2="1" y2="1"><stop stop-color="#ffd28a" stop-opacity=".85"/><stop offset="1" stop-color="#f18a42" stop-opacity=".12"/></linearGradient>
+ <filter id="glow"><feGaussianBlur stdDeviation="9" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+ <pattern id="grid" width="42" height="42" patternUnits="userSpaceOnUse"><path d="M42 0H0V42" fill="none" stroke="#8bb5d8" stroke-opacity=".1"/></pattern>
+</defs>
+<rect width="1600" height="620" rx="24" fill="url(#bg)"/><rect width="1600" height="620" rx="24" fill="url(#grid)"/>
+<g fill="none" stroke="#52cfff" stroke-opacity=".16"><ellipse cx="1050" cy="325" rx="430" ry="150"/><ellipse cx="1050" cy="325" rx="360" ry="125"/><ellipse cx="1050" cy="325" rx="290" ry="100"/></g>
+<g transform="translate(1030 300)" filter="url(#glow)" stroke-linejoin="round">
+ <path d="M0-210 205-92 0 26-205-92Z" fill="#1a4667" fill-opacity=".18" stroke="#83eaff" stroke-width="3"/>
+ <path d="M-205-92 0 26v240l-205-119Z" fill="#0c2742" fill-opacity=".48" stroke="#51c8ff" stroke-width="3"/>
+ <path d="M205-92 0 26v240l205-119Z" fill="#102d4a" fill-opacity=".48" stroke="#51c8ff" stroke-width="3"/>
+ <path d="M-130-88 0-163 130-88 0-13Z" fill="#5bd9f4" fill-opacity=".1" stroke="#b0f5ff" stroke-opacity=".8"/>
+ <path d="M-130-88 0-13v145l-130-75Z" fill="#227fa8" fill-opacity=".16" stroke="#71dfff"/>
+ <path d="M130-88 0-13v145l130-75Z" fill="#2871a8" fill-opacity=".17" stroke="#71dfff"/>
+ <path d="M-72-91 0-132 72-91 0-49Z" fill="#ffbc72" fill-opacity=".18" stroke="#ffd18b" stroke-width="2"/>
+ <path d="M-72-91 0-49v82l-72-41Z" fill="#f49a54" fill-opacity=".18" stroke="#ffbf78"/>
+ <path d="M72-91 0-49v82l72-41Z" fill="#d86f3b" fill-opacity=".18" stroke="#ffbf78"/>
+ <path d="M-205-92 0 26 205-92M0 26v240" fill="none" stroke="#c2f6ff" stroke-opacity=".7" stroke-dasharray="5 9"/>
+ <g fill="#aaf5ff" stroke="#0a1829" stroke-width="3"><circle cx="0" cy="-210" r="7"/><circle cx="-205" cy="-92" r="7"/><circle cx="205" cy="-92" r="7"/><circle cx="0" cy="266" r="7"/></g>
+</g>
+<g stroke="#71dfff" stroke-width="2" fill="none" opacity=".9"><path d="M720 170H840L900 210"/><path d="M1220 175h130l60-40"/><path d="M1220 440h135l60 38"/><path d="M850 475H730l-60 45"/></g>
+<g fill="#a8eaff" font-family="ui-monospace,monospace" font-size="15"><text x="600" y="155">SOURCE GRAPH</text><text x="1360" y="122">BINARY LAYERS</text><text x="1360" y="515">EVIDENCE TRACE</text><text x="570" y="545">DEPENDENCY MAP</text></g>
+<g transform="translate(92 160)" font-family="Arial,sans-serif"><text fill="#83eaff" font-size="16" letter-spacing="5">V RUNTIME LABS  /  SOFTWARE INTELLIGENCE</text><text y="92" fill="#f3f8ff" font-size="64" font-weight="700">VRuntime</text><text y="162" fill="#f3f8ff" font-size="64" font-weight="700">Inspector</text><path d="M0 192h310" stroke="#55d9ff" stroke-width="3"/><text y="236" fill="#b8cce0" font-size="22">See inside software.</text><text y="270" fill="#b8cce0" font-size="22">Follow the evidence.</text><text y="330" fill="#7f9bb7" font-family="ui-monospace,monospace" font-size="13">WEB  /  CODE  /  NETWORK  /  BINARY  /  RUNTIME</text></g>
+<g fill="#77dfff"><circle cx="720" cy="170" r="4"/><circle cx="1410" cy="135" r="4"/><circle cx="1415" cy="478" r="4"/><circle cx="670" cy="520" r="4"/></g>
+</svg>
