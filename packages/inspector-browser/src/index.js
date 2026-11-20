@@ -95,7 +95,7 @@ export function classifyRuntimeAction(action) {
     type, label, effect,
     requiresApproval: true,
     allowed: action.approved === true,
-    reason: action.approved === true ? "Explicitly approved for this inspection step." : "Interaction requires explicit user approval before execution."
+    reason: action.approved === true ? "The MCP caller asserted that the user approved this inspection step; the server cannot independently verify the confirmation." : "Interaction requires explicit user approval before execution."
   };
 }
 
