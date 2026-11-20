@@ -14,8 +14,9 @@
 
 - Shared browser inspection policy: target validation, URL redaction, viewport normalization, bounded limits, action classification and evidence provenance.
 - Cloudflare Browser Run provider using Puppeteer, loaded only when the browser binding is present.
-- New MCP tool: `runtime_inspect_website({url, viewport?, waitAfterLoadMs?})`.
+- New MCP tool: `runtime_inspect_website({url, viewport?, waitAfterLoadMs?, actions?})`.
 - Initial rendered-page capture: screenshot, live DOM summary, headings, links, forms, visible controls, accessibility tree, console messages and same-origin request/response metadata.
+- Optional interaction exploration: up to eight explicitly approved, selector-bound click/hover/safe-key/scroll actions with before/after state summaries and initial/final screenshots. Clicks are limited to labelled non-submit buttons/tabs outside forms; text entry, activation keys, navigation actions and form submission are disabled.
 - Browser contexts are ephemeral; popups and dialogs are closed/dismissed; only same-origin HTTP(S) requests are allowed; forms are not submitted.
 - Browser Run binding is declared in `wrangler.toml`; `@cloudflare/puppeteer` is declared as a development dependency.
 - The runtime tool reports a clear unavailable-provider error if the binding is not configured.
@@ -24,7 +25,6 @@
 
 - The runtime provider has not yet been deployed or exercised against a real Browser Run session.
 - DNS/IP pinning and provider-level egress enforcement require a security review before enabling hosted runtime for general public use. Same-origin request interception is an additional restriction, not a substitute for DNS-rebinding protection.
-- Approved click/hover/keyboard/scroll exploration and before/after state comparison.
 - Multi-page runtime crawl and cross-viewport batch orchestration.
 - Workbench runtime controls and screenshot/evidence bundle export.
 - Local Playwright companion for private websites, installed apps and local files.
