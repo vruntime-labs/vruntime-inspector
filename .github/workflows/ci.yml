@@ -14,7 +14,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Verify syntax
+      - name: Install declared dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Verify JavaScript syntax
         run: npm run check
-      - name: Run tests
+      - name: Run unit and integration tests
         run: npm test
+      - name: Verify Cloudflare Worker bundle
+        run: npx wrangler deploy --dry-run --outdir /tmp/vruntime-inspector-worker
