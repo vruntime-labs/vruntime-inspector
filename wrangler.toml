@@ -5,3 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [browser]
 binding = "BROWSER"
+
+[vars]
+RUNTIME_BROWSER_ENABLED = "false"
+RUNTIME_BROWSER_ALLOWED_HOSTS = ""
