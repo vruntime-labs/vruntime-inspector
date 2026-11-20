@@ -7,12 +7,11 @@
 <p><strong>See inside software. Follow the evidence.</strong></p>
 
 <p>
-  An open-source software investigation workbench designed around one shared inspection engine.
-  Explore software structure, trace relationships, and turn technical observations into evidence-backed reports.
+  An open-source, AI-first software investigation tool. Connect its remote MCP server to compatible AI and vibe-coding tools, or inspect a public website in the hosted workbench. The connected AI uses its own model and usage plan to reason and generate code.
 </p>
 
 <p>
-  <a href="#standalone-workbench"><strong>Standalone Workbench</strong></a> ·
+  <a href="#hosted-cloud-workbench"><strong>Hosted Workbench</strong></a> ·
   <a href="#inspection-domains"><strong>Inspection Domains</strong></a> ·
   <a href="#how-it-fits-together"><strong>Architecture</strong></a> ·
   <a href="#integrations"><strong>AI &amp; Developer Integrations</strong></a> ·
@@ -35,13 +34,13 @@
 
 It is being designed to examine software artifacts such as web captures, JavaScript and TypeScript projects, Electron packages, network recordings, and native executable files. The depth of inspection depends on the artifact, available metadata, configured tools, and permissions.
 
-The project has three ways to work with the same capabilities:
+The project has three access paths:
 
-- **Standalone application** — the primary product: a visual workspace for importing artifacts, running inspections, exploring relationships, and reviewing findings.
-- **Command-line interface** — for local workflows, automation, repeatable analysis, and structured exports.
-- **MCP integrations** — for AI clients that can use compatible MCP servers and their supported transports.
+- **AI integrations (MCP)** — the primary interface for compatible AI assistants and vibe-coding tools. The Inspector supplies inspection tools and evidence; the connected AI uses its own model and credits to plan and generate application code.
+- **Hosted web workbench** — inspect a public website from a browser and export an AI-ready reconstruction brief. No local server is required for this workflow.
+- **Local CLI and workbench** — analyze local source files and supplied artifacts such as HAR captures on the developer’s own machine.
 
-The interfaces are not separate analysis engines. They are intended to call the same shared capabilities.
+These interfaces share inspection capabilities. VRuntime Inspector does not provide an AI model, code-generation credits, or a separate AI subscription.
 
 > **Project status:** VRuntime Inspector is in early development. The architecture and module descriptions below communicate the intended direction; they are not a claim that every inspector, integration, or security control is already implemented. Follow the repository and release notes for verified availability.
 
@@ -59,13 +58,26 @@ A typical investigation follows a simple path:
 4. **Connect the evidence** — build relationships such as imports, routes, endpoints, package contents, and dependencies where the available data supports them.
 5. **Review and export** — inspect provenance, coverage, uncertainty, and limitations before generating a report.
 
+## Hosted cloud workbench
+
+The hosted beta is designed for developers who cannot or do not want to run a local server. Open the [VRuntime Inspector Cloud Workbench](https://vruntime-inspector-cloud.vruntimelabs.workers.dev/), paste a public website URL, choose a small page limit, and start an inspection. It returns an evidence-backed Markdown brief that can be copied or downloaded and supplied to an AI coding assistant.
+
+The same service exposes a remote MCP endpoint for compatible clients:
+
+- **MCP endpoint:** `https://vruntime-inspector-cloud.vruntimelabs.workers.dev/mcp`
+- **Transport:** Streamable HTTP
+- **Initial tools:** `inspect_website`, `get_inspector_capabilities`
+- **AI billing:** the Inspector does not call an LLM. Your connected AI uses its own model and usage allowance for reasoning and code generation.
+
+The hosted beta currently performs bounded, passive HTML inspection. It does not run the target website’s JavaScript, click through controls, inspect private backend code, access databases, or bypass authentication. See [hosted service details](apps/cloudflare/README.md) for exact limits and client compatibility notes. ChatGPT custom MCP availability depends on the ChatGPT plan and supported connector features; users on plans without custom MCP access can use the hosted workbench to export a brief and upload it into ChatGPT.
+
 ## Standalone workbench
 
 <div align="center">
   <img src="docs/assets/standalone-workbench.svg" alt="Concept illustration of the standalone VRuntime Inspector 3D workbench" width="100%" />
 </div>
 
-The **standalone application is the primary interface**, not an auxiliary page for the MCP server.
+The local workbench complements the hosted web interface. It is intended for artifacts that should remain on the developer’s own machine, such as local HAR files and source trees.
 
 The intended workbench brings the investigation into one place:
 
@@ -135,7 +147,7 @@ This separation is intended to keep behavior consistent: a finding produced thro
 
 ### AI clients through MCP
 
-MCP is an integration surface for compatible clients; it is not the whole product. The project intends to expose focused tools for supported inspection workflows, with structured results and evidence references.
+MCP is the primary AI integration surface. The hosted beta currently exposes a remote Streamable HTTP server with bounded website inspection and capability-discovery tools. The connected AI decides how to use the returned evidence and generates code using its own model and usage plan.
 
 Potential tool families include:
 
@@ -149,7 +161,7 @@ Potential tool families include:
 | `runtime.*` | Run explicitly approved observation scenarios. |
 | `evidence.*` | Retrieve, filter, and export evidence records. |
 
-The eventual MCP transport choices are **stdio for local clients** and **Streamable HTTP for remote deployments**, subject to implementation and client support. Connection instructions will be published when those endpoints are actually available.
+The hosted beta implements the current Streamable HTTP protocol revision `2026-07-28` and accepts the legacy initialize handshake for older clients. Local stdio transport is planned but is not yet shipped. Client support varies; test the endpoint with the target AI client before relying on it for a production workflow.
 
 ### CLI
 
@@ -179,7 +191,7 @@ These are project requirements, not a certification that every safeguard is alre
 
 ## Quick start
 
-The first local inspection slice is now runnable. It includes a HAR inspector in the standalone workbench, a local CLI, an evidence ledger, and a limited JavaScript module-reference scanner.
+The hosted website-inspection beta is available alongside the first local inspection slice. The local slice includes a HAR inspector, CLI, evidence ledger, and a limited JavaScript module-reference scanner.
 
 **Requirements:** Node.js 22 or newer. The initial slice uses Node.js built-ins and has no third-party runtime dependencies.
 
@@ -199,7 +211,7 @@ node apps/cli/src/index.js analyze-js ./src/main.js
 
 Open http://127.0.0.1:4173 for the standalone workbench. Import a .har file up to 10 MiB to inventory captured requests and inspect redacted metadata.
 
-See [Development](README-DEV.md) and [Implementation Status](docs/IMPLEMENTATION_STATUS.md) for exact scope and limitations. The JavaScript scanner is currently regex-based, not a full AST parser. MCP, remote hosting, and the other inspection domains are not shipped yet.
+See [Development](README-DEV.md), [Implementation Status](docs/IMPLEMENTATION_STATUS.md), and [Cloud Workbench details](apps/cloudflare/README.md) for exact scope and limitations. The JavaScript scanner is currently regex-based, not a full AST parser. Deep browser automation, full backend inspection, code generation and the other inspection domains are not shipped yet.
 
 ## Technical references & acknowledgements
 

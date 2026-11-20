@@ -1,25 +1,31 @@
 # Implementation Status
 
-## Working in 0.1.0
+## Working in 0.2.0 beta
 
-- Shared npm workspace and structured inspector errors.
-- Evidence records with classification validation, SHA-256 content digest, and an in-memory ledger.
-- Inspector registry with job states, cancellation signal propagation, timeout handling, and explicit approval checks for declared active effects.
-- JavaScript source-text scanner for common literal imports, re-exports, dynamic imports, CommonJS requires, and source-map reference hints. This is regex-based, not AST parsing.
-- HAR import, request inventory, credential-like header/query redaction, observed evidence records, and sanitized method/URL comparison.
-- Local CLI commands for HAR and JavaScript source files.
-- Local standalone workbench for HAR import and request/evidence summary. Server binds to loopback by default and limits JSON uploads to 10 MiB.
+- Hosted Cloudflare Worker with a browser workbench and public website URL input.
+- Bounded passive HTML inspection of up to six same-origin pages.
+- Extraction of titles, descriptions, headings, links, visible control labels, forms, image alt attributes, script/style references, and heuristic framework/CMS signals.
+- AI-ready Markdown reconstruction brief with page inventory, evidence references, unknowns, and explicit coverage limitations.
+- Remote MCP Streamable HTTP endpoint implementing protocol revision `2026-07-28`, including `server/discover`, `tools/list`, and `tools/call`; a legacy initialize handshake is also accepted.
+- MCP tools: `inspect_website` and `get_inspector_capabilities`.
+- URL protections: HTTP(S) only, no URL credentials, no IP-literal/local/internal hostnames, same-origin page crawl, redirect revalidation, no cross-origin redirects, bounded response size/time, robots.txt disallow checks, and sensitive query-parameter redaction in exported results.
+- Best-effort in-memory per-isolate request throttling. This is not a durable global rate limiter and must be strengthened before a high-traffic public launch.
+- Local CLI, HAR workbench, evidence ledger, and limited regex-based JavaScript scanner remain available.
 
 ## Not shipped yet
 
+- JavaScript-rendered browser inspection, DOM snapshots from a live browser, accessibility tree capture, interaction recording, hover/drag/keyboard workflows, or screenshot comparison.
+- Fetching and analyzing linked JavaScript bundles or CSS source; API endpoint probing and authenticated session inspection.
+- Private backend source-code, database, server-side business-logic, or private API introspection from a public URL alone.
 - Full ECMAScript/TypeScript AST parsing, package resolution, source-map reconstruction, or call-graph analysis.
-- Live browser/CDP inspection, DOM/accessibility capture, or framework fingerprinting.
 - Electron ASAR/IPC/fuse inspection.
 - Native ELF/PE/Mach-O parsing or Ghidra integration.
 - Runtime process instrumentation or sandbox execution.
-- MCP server, remote HTTP deployment, authentication, Docker packaging, persistence, accounts, or collaboration.
-- Interactive 3D graph rendering in the standalone workbench.
+- Local stdio MCP adapter, editor-specific packaged integrations, durable storage, user accounts, and team collaboration.
+- AI code generation inside VRuntime Inspector. The connected AI client is responsible for reasoning and code generation using its own model and usage plan.
+- Production-grade global rate limiting, user authentication, and abuse monitoring for the public hosted endpoint.
+- Interactive 3D graph rendering.
 
 ## Verification
 
-Run npm run check and npm test with Node.js 22 or newer. CI runs these checks on pushes to main, pull requests, and manual dispatches. Do not describe a check as passing unless its run has completed successfully.
+Run `node scripts/check.mjs` and `node --test tests/*.test.js` with Node.js 22 or newer. CI runs these checks on pushes to main, pull requests, and manual dispatches. Do not describe a check as passing unless its run has completed successfully.
