@@ -198,32 +198,32 @@ async function safeFetchAsset(value, origin, serviceHost) {
   }
   if (!response.ok) return { skipped: true };
   const type = response.headers.get("content-type") || "";
-  if (type && !/(javascript|ecmascript|text\\/css|text\\/plain|application\\/x-javascript|octet-stream)/i.test(type)) return { skipped: true };
+  if (type && !/(javascript|ecmascript|text\/css|text\/plain|application\/x-javascript|octet-stream)/i.test(type)) return { skipped: true };
   try { return { text: await readLimited(response, MAX_ASSET_BYTES) }; } catch { return { skipped: true }; }
 }
 function analyzeScriptSource(source, url) {
   const text = String(source || "");
-  const endpoints = [...new Set([...text.matchAll(/["'](\\/(?:api|graphql|auth|oauth|v\\d+\\/)[^"'\\s]{1,180})["']/gi)].map(m => m[1]))].slice(0, 40);
-  const routePaths = [...new Set([...text.matchAll(/(?:path|route|to|href)\\s*:\\s*["'](\\/[^"'\\s]{1,120})["']/gi)].map(m => m[1]))].slice(0, 40);
-  const imports = [...new Set([...text.matchAll(/(?:from\\s*|import\\s*\\(|import\\s*)["']([^"']{1,180})["']/g)].map(m => m[1]))].slice(0, 50);
-  const sourceMapReferences = [...text.matchAll(/[#@]\\s*sourceMappingURL=([^\\s*]+)/g)].map(m => m[1]).slice(0, 5);
+  const endpoints = [...new Set([...text.matchAll(/["'](\/(?:api|graphql|auth|oauth|v\d+\/)[^"'\s]{1,180})["']/gi)].map(m => m[1]))].slice(0, 40);
+  const routePaths = [...new Set([...text.matchAll(/(?:path|route|to|href)\s*:\s*["'](\/[^"'\s]{1,120})["']/gi)].map(m => m[1]))].slice(0, 40);
+  const imports = [...new Set([...text.matchAll(/(?:from\s*|import\s*\(|import\s*)["']([^"']{1,180})["']/g)].map(m => m[1]))].slice(0, 50);
+  const sourceMapReferences = [...text.matchAll(/[#@]\s*sourceMappingURL=([^\s*]+)/g)].map(m => m[1]).slice(0, 5);
   const markers = [];
   const mark = (name, pattern) => { if (pattern.test(text)) markers.push(name); };
-  mark("fetch API", /\\bfetch\\s*\\(/); mark("XMLHttpRequest", /\\bXMLHttpRequest\\b/); mark("Axios", /\\baxios\\b/i);
-  mark("WebSocket", /\\bWebSocket\\s*\\(/); mark("EventSource", /\\bEventSource\\s*\\(/);
-  mark("localStorage", /\\blocalStorage\\b/); mark("sessionStorage", /\\bsessionStorage\\b/); mark("IndexedDB", /\\bindexedDB\\b/);
-  mark("service worker", /\\bserviceWorker\\b/); mark("postMessage", /\\bpostMessage\\s*\\(/); mark("DOM event listeners", /\\.addEventListener\\s*\\(/);
-  mark("dynamic import", /\\bimport\\s*\\(/); mark("React", /\\bReact(?:DOM)?\\b|jsx-runtime/); mark("Vue", /\\bcreateApp\\s*\\(|__VUE__/);
-  mark("Angular", /\\bɵ(?:defineComponent|fac)\\b|ng\\.core/); mark("Svelte", /\\bsvelte(?:\\/internal)?\\b/);
+  mark("fetch API", /\bfetch\s*\(/); mark("XMLHttpRequest", /\bXMLHttpRequest\b/); mark("Axios", /\baxios\b/i);
+  mark("WebSocket", /\bWebSocket\s*\(/); mark("EventSource", /\bEventSource\s*\(/);
+  mark("localStorage", /\blocalStorage\b/); mark("sessionStorage", /\bsessionStorage\b/); mark("IndexedDB", /\bindexedDB\b/);
+  mark("service worker", /\bserviceWorker\b/); mark("postMessage", /\bpostMessage\s*\(/); mark("DOM event listeners", /\.addEventListener\s*\(/);
+  mark("dynamic import", /\bimport\s*\(/); mark("React", /\bReact(?:DOM)?\b|jsx-runtime/); mark("Vue", /\bcreateApp\s*\(|__VUE__/);
+  mark("Angular", /\bɵ(?:defineComponent|fac)\b|ng\.core/); mark("Svelte", /\bsvelte(?:\/internal)?\b/);
   return { url, bytes: new TextEncoder().encode(text).length, endpointCandidates: endpoints, routeCandidates: routePaths, importSpecifiers: imports, sourceMapReferences, behaviorMarkers: markers, evidence: "Static text analysis only; this does not prove execution." };
 }
 function analyzeStylesheet(source, url) {
   const text = String(source || "");
-  const customProperties = [...new Set([...text.matchAll(/(--[a-z][\\w-]*)\\s*:/gi)].map(m => m[1]))].slice(0, 60);
-  const mediaQueries = [...text.matchAll(/@media\\s*([^\\{]+)/gi)].map(m => m[1].trim()).slice(0, 30);
-  const fontFamilies = [...new Set([...text.matchAll(/font-family\\s*:\\s*([^;}]+)/gi)].map(m => m[1].trim().replace(/^['"]|['"]$/g, "")))].slice(0, 30);
-  const responsiveBreakpoints = [...new Set([...mediaQueries.join(" ").matchAll(/(?:min|max)-width\\s*:\\s*([\\d.]+(?:px|em|rem))/gi)].map(m => m[1]))].slice(0, 20);
-  return { url, bytes: new TextEncoder().encode(text).length, customProperties, mediaQueries, responsiveBreakpoints, fontFamilies, selectorCount: (text.match(/[^{}]+\\{/g) || []).length, evidence: "Static CSS analysis; computed styles and runtime layout are not observed." };
+  const customProperties = [...new Set([...text.matchAll(/(--[a-z][\w-]*)\s*:/gi)].map(m => m[1]))].slice(0, 60);
+  const mediaQueries = [...text.matchAll(/@media\s*([^\{]+)/gi)].map(m => m[1].trim()).slice(0, 30);
+  const fontFamilies = [...new Set([...text.matchAll(/font-family\s*:\s*([^;}]+)/gi)].map(m => m[1].trim().replace(/^['"]|['"]$/g, "")))].slice(0, 30);
+  const responsiveBreakpoints = [...new Set([...mediaQueries.join(" ").matchAll(/(?:min|max)-width\s*:\s*([\d.]+(?:px|em|rem))/gi)].map(m => m[1]))].slice(0, 20);
+  return { url, bytes: new TextEncoder().encode(text).length, customProperties, mediaQueries, responsiveBreakpoints, fontFamilies, selectorCount: (text.match(/[^{}]+\{/g) || []).length, evidence: "Static CSS analysis; computed styles and runtime layout are not observed." };
 }
 function makeDeepMarkdown(result) {
   const lines = ["# Deep website investigation brief", "", "- Target: " + result.target, "- Inspected: " + result.inspectedAt, "- Pages inspected: " + result.pages.length, "- Mode: deep static asset investigation (no target code execution)", "", "## Product positioning", result.summary.visiblePurpose || "Not established.", "", "## Page inventory"];
@@ -233,7 +233,7 @@ function makeDeepMarkdown(result) {
   lines.push("", "## CSS source analysis", "- Analyzed: " + result.assets.stylesheets.length, "- Skipped/unavailable: " + result.assets.stylesheetsSkipped);
   for (const item of result.assets.stylesheets) lines.push("", "### " + item.url, "- Approximate selectors: " + item.selectorCount, "- Custom properties: " + (item.customProperties.join(", ") || "None found"), "- Responsive breakpoints: " + (item.responsiveBreakpoints.join(", ") || "None found"), "- Font families: " + (item.fontFamilies.join(", ") || "None found"), "- Media queries: " + item.mediaQueries.length);
   lines.push("", "## Evidence interpretation", "- HTML structure is observed from fetched public HTML.", "- JavaScript and CSS findings are derived from downloaded same-origin text assets. Static strings do not prove runtime execution.", "- API and route strings are candidates only; no endpoints were probed.", "- No inspected JavaScript was executed.", "", "## Reconstruction guidance", "Use these findings to plan an original implementation. Treat API and route strings as candidates, not confirmed contracts. Recreate observable workflows with original branding and assets. Clearly label assumptions where behavior is not evidenced.", "", "## Unknowns and limitations", ...result.coverage.limitations.map(x => "- " + x), "", "## Further investigation required", "- Render the target in a controlled browser to capture JavaScript-generated DOM, screenshots, accessibility structure and responsive layouts.", "- Exercise visible controls with authorization and record resulting state transitions.", "- Observe network traffic during those interactions; do not probe guessed endpoints.", "- Private backend source, databases and server-side business logic remain unknown unless separately supplied or authorized.", "", "## Safety", "Public read-only retrieval only. Static assets were not executed. No authentication bypass, endpoint probing or target mutation was performed.");
-  return lines.join("\\n");
+  return lines.join("\n");
 }
 async function deepInvestigateWebsite(inputUrl, requestedPages = 4, serviceHost = "") {
   const result = await inspectWebsite(inputUrl, requestedPages, serviceHost);
