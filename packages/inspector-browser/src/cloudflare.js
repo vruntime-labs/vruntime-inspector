@@ -25,6 +25,18 @@ function scrubData(value) {
   return value;
 }
 
+export function isRuntimeBrowserEnabled(env, hostname) {
+  const allowedHosts = String(env?.RUNTIME_BROWSER_ALLOWED_HOSTS ?? "")
+    .split(",").map(value => value.trim().toLowerCase()).filter(Boolean);
+  if (!env?.BROWSER || env.RUNTIME_BROWSER_ENABLED !== "true" || allowedHosts.length === 0) return false;
+  return hostname === undefined || allowedHosts.includes(String(hostname).toLowerCase());
+}
+
+export function createBrowserRunGuardrails(value) {
+  const target = value instanceof URL ? value : new URL(value);
+  return { allowedDomains: [target.hostname.toLowerCase()] };
+}
+
 function isSafeSameOriginResource(value, origin) {
   try {
     const url = new URL(value);
@@ -221,11 +233,14 @@ export async function runtimeInspectWebsite(env, input) {
   });
   const target = validateRuntimeTarget(input?.url);
   if (target.protocol !== "https:") throw new Error("Runtime browser inspection requires HTTPS.");
+  if (!isRuntimeBrowserEnabled(env, target.hostname)) {
+    throw new Error("Hosted runtime is disabled or this hostname is not in RUNTIME_BROWSER_ALLOWED_HOSTS.");
+  }
   const disallowedPaths = Array.isArray(input?.disallowedPaths) ? input.disallowedPaths.filter(value => typeof value === "string").slice(0, 100) : [];
   if (disallowedPaths.some(rule => rule === "/" || (rule && target.pathname.startsWith(rule)))) throw new Error("Runtime inspection skipped because robots.txt disallows this path.");
   const waitAfterLoadMs = Math.max(0, Math.min(5000, Number(input?.waitAfterLoadMs ?? 1200)));
   const { default: puppeteer } = await import("@cloudflare/puppeteer");
-  const browser = await puppeteer.launch(env.BROWSER);
+  const browser = await puppeteer.launch(env.BROWSER, { guardrails: createBrowserRunGuardrails(target) });
   const startedAt = Date.now();
   const consoleMessages = [];
   const networkEvents = [];
