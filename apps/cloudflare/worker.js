@@ -1,6 +1,6 @@
 import { runtimeInspectWebsite } from "../../packages/inspector-browser/src/cloudflare.js";
 
-const VERSION = "0.4.0";
+const VERSION = "0.5.0";
 const MCP_VERSION = "2026-07-28";
 const SERVER_INFO = { name: "vruntime-inspector", version: VERSION };
 const MAX_BODY = 16 * 1024;
