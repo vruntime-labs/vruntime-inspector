@@ -4,7 +4,7 @@ import {
   classifyRuntimeAction, createRuntimeEvidence, createRuntimeInspectionPlan,
   normalizeRuntimeLimits, normalizeViewport, redactRuntimeUrl, validateRuntimeTarget
 } from "../packages/inspector-browser/src/index.js";
-import { runtimeInspectWebsite } from "../packages/inspector-browser/src/cloudflare.js";
+import { discoverRuntimePageTargets, runtimeInspectWebsite } from "../packages/inspector-browser/src/cloudflare.js";
 
 test("creates a bounded runtime plan with default desktop viewport", () => {
   const plan = createRuntimeInspectionPlan({ url: "https://example.com/?token=private" });
@@ -50,6 +50,26 @@ test("limits keyboard actions and scrolling to safe bounded inputs", () => {
   assert.throws(() => classifyRuntimeAction({ type: "navigate", url: "https://outside.example", approved: true }), /Navigation and form submission are disabled/);
   assert.throws(() => classifyRuntimeAction({ type: "evaluate", expression: "alert(1)" }), /Supported runtime actions/);
 });
+
+test("discovers only bounded same-origin page routes and honors robots disallow rules", () => {
+  const links = [
+    { href: "https://example.com/about?campaign=private#top" },
+    { href: "https://outside.example/pricing" },
+    { href: "https://example.com/assets/app.js" },
+    { href: "https://example.com/private/account" },
+    { href: "https://example.com/contact" },
+    { href: "mailto:team@example.com" }
+  ];
+  assert.deepEqual(
+    discoverRuntimePageTargets(links, "https://example.com/", 4, ["/private/"]),
+    ["https://example.com/about", "https://example.com/contact"]
+  );
+  assert.deepEqual(
+    discoverRuntimePageTargets(links, "https://example.com/", 1, []),
+    ["https://example.com/about"]
+  );
+});
+
 test("runtime evidence preserves provenance and redacts source URLs", () => {
   const evidence = createRuntimeEvidence({ classification: "observed", sourceUrl: "https://example.com/?session=secret", detail: "Button became visible." });
   assert.equal(evidence.provenance, "runtime-browser"); assert.doesNotMatch(evidence.sourceUrl, /secret/);
