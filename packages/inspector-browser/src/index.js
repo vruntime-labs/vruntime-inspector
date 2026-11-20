@@ -15,9 +15,9 @@ export const VIEWPORT_PRESETS = Object.freeze({
   mobile: Object.freeze({ width: 390, height: 844, deviceScaleFactor: 1, isMobile: true })
 });
 
-const PRIVATE_IPV4 = /^(?:10\.|127\.|169\.254\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|0\.)/;
+const PRIVATE_IPV4 = /^(?:0\.|10\.|127\.|169\.254\.|192\.0\.0\.|192\.0\.2\.|192\.168\.|198\.51\.100\.|203\.0\.113\.|198\.(?:18|19)\.|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|172\.(?:1[6-9]|2\d|3[01])\.|22[4-9]\.|23\.|24\d\.|25[0-5]\.)/;
 const SENSITIVE = /(token|secret|password|passwd|auth|session|signature|api[_-]?key|access[_-]?key|jwt|credential|code)/i;
-const DESTRUCTIVE = /\b(delete|remove|destroy|logout|sign out|log out|purchase|buy now|checkout|pay now|transfer|send|publish|post|submit|upload|install|uninstall|reset|revoke|confirm order)\b/i;
+const DESTRUCTIVE = /\b(delete|remove|destroy|logout|sign out|log out|sign in|log in|authenticate|purchase|buy now|checkout|pay now|transfer|send|publish|post|submit|upload|install|uninstall|reset|revoke|confirm order)\b/i;
 
 export function validateRuntimeTarget(value) {
   let url;
@@ -73,7 +73,7 @@ export function classifyRuntimeAction(action) {
   }
   const label = String(action.label ?? action.text ?? action.accessibleName ?? "").slice(0, 300);
   if (DESTRUCTIVE.test(label)) {
-    return { type, label, effect: "mutatesTarget", requiresApproval: true, allowed: false, reason: "Potentially destructive or externally committing controls are never auto-activated." };
+    return { type, label, effect: "mutatesTarget", requiresApproval: true, allowed: false, reason: "Authentication, destructive or externally committing controls are never auto-activated." };
   }
   if (type === "navigate") {
     const destination = validateRuntimeTarget(action.url);
@@ -82,9 +82,9 @@ export function classifyRuntimeAction(action) {
       return { type, label, effect: "accessesNetwork", requiresApproval: true, allowed: false, reason: "Runtime navigation is restricted to the inspected origin." };
     }
   }
+  const effect = type === "navigate" ? "accessesNetwork" : ["click", "press"].includes(type) ? "mutatesTarget" : "readOnly";
   return {
-    type, label,
-    effect: type === "navigate" ? "accessesNetwork" : "readOnly",
+    type, label, effect,
     requiresApproval: true,
     allowed: action.approved === true,
     reason: action.approved === true ? "Explicitly approved for this inspection step." : "Interaction requires explicit user approval before execution."
