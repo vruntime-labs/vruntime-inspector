@@ -270,7 +270,7 @@ export async function runtimeInspectWebsite(env, input) {
       await page.setViewport({ width: viewport.width, height: viewport.height, deviceScaleFactor: viewport.deviceScaleFactor, isMobile: viewport.isMobile });
       const viewportUrls = viewportIndex === 0 ? crawlUrls : crawlUrls.slice(0, effectiveMaxPages);
       for (let pageIndex = 0; pageIndex < viewportUrls.length && pages.filter(item => item.viewport.name === viewport.name).length < effectiveMaxPages; pageIndex++) {
-        if (Date.now() - startedAt > 37_000) break;
+        if (Date.now() - startedAt > 30_000) break;
         const pageUrl = viewportUrls[pageIndex];
         let response;
         try {
@@ -297,15 +297,17 @@ export async function runtimeInspectWebsite(env, input) {
               primaryAccessibility = accessibility;
               navigationStatus = response?.status() ?? null;
               const available = effectiveMaxPages - crawlUrls.length;
-              const candidates = discoverRuntimePageTargets(pageData.links, page.url(), available + 1, disallowedPaths);
-              if (candidates.length > available) pageDiscoveryTruncated = true;
-              for (const candidate of candidates.slice(0, available)) if (!crawlUrls.includes(candidate)) crawlUrls.push(candidate);
+              const candidates = discoverRuntimePageTargets(pageData.links, page.url(), 200, disallowedPaths);
+              const newCandidates = candidates.filter(candidate => !crawlUrls.includes(candidate));
+              if (newCandidates.length > available) pageDiscoveryTruncated = true;
+              for (const candidate of newCandidates.slice(0, available)) crawlUrls.push(candidate);
             }
           } else if (viewportIndex === 0) {
             const available = effectiveMaxPages - crawlUrls.length;
             const candidates = discoverRuntimePageTargets(pageData.links, page.url(), available + 1, disallowedPaths);
-            if (candidates.length > available) pageDiscoveryTruncated = true;
-            for (const candidate of candidates.slice(0, available)) if (!crawlUrls.includes(candidate)) crawlUrls.push(candidate);
+            const newCandidates = candidates.filter(candidate => !crawlUrls.includes(candidate));
+            if (newCandidates.length > available) pageDiscoveryTruncated = true;
+            for (const candidate of newCandidates.slice(0, available)) crawlUrls.push(candidate);
           }
           evidence.push(createRuntimeEvidence({ classification: "observed", sourceUrl: page.url(), pageId: pageRecord.pageId, detail: "Captured rendered page " + pageRecord.pageId + " at " + viewport.name + " viewport." }));
         } catch (error) {
@@ -327,7 +329,7 @@ export async function runtimeInspectWebsite(env, input) {
     let latestAccessibility = initialAccessibility;
     let finalScreenshot = screenshots[0].screenshot;
 
-    if (requestedActions.length && Date.now() - startedAt < 39_000) {
+    if (requestedActions.length && Date.now() - startedAt < 28_000) {
       await page.setViewport({ width: viewports[0].width, height: viewports[0].height, deviceScaleFactor: viewports[0].deviceScaleFactor, isMobile: viewports[0].isMobile });
       await page.goto(target.href, { waitUntil: "domcontentloaded", timeout: 9000 });
       if (waitAfterLoadMs) await new Promise(resolve => setTimeout(resolve, Math.min(waitAfterLoadMs, 500)));
