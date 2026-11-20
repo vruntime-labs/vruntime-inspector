@@ -1,4 +1,6 @@
-const VERSION = "0.3.0";
+import { runtimeInspectWebsite } from "../../packages/inspector-browser/src/cloudflare.js";
+
+const VERSION = "0.4.0";
 const MCP_VERSION = "2026-07-28";
 const SERVER_INFO = { name: "vruntime-inspector", version: VERSION };
 const MAX_BODY = 16 * 1024;
@@ -308,14 +310,15 @@ async function inspectWebsite(inputUrl, requestedPages = 4, serviceHost = "") {
 }
 
 const TOOLS = [
+  { name: "runtime_inspect_website", description: "Render a public website in an isolated, temporary Cloudflare Browser Run session. Capture a real viewport screenshot, rendered DOM, visible controls, headings, links, forms, accessibility tree, console messages and same-origin network events. This captures the initial state only; it does not click controls or submit forms. Requires the optional Cloudflare Browser Run binding and consumes the account daily browser quota. Only inspect targets you are authorized to examine.", inputSchema: { type: "object", properties: { url: { type: "string", format: "uri", description: "Public HTTPS website URL. Local, private, internal and IP-literal targets are rejected." }, viewport: { type: "string", enum: ["desktop", "tablet", "mobile"], default: "desktop" }, waitAfterLoadMs: { type: "integer", minimum: 0, maximum: 5000, default: 1200 } }, required: ["url"], additionalProperties: false } },
   { name: "inspect_website", description: "Passively inspect a public website by URL. Crawls a small number of same-origin HTML pages, maps titles, descriptions, headings, links, visible controls, forms, image alt text, script and stylesheet references, and heuristic technology signals. Returns structured evidence and an AI-ready reconstruction brief. Does not execute site JavaScript, interact with controls, access private backends or bypass authentication. Only inspect targets you are authorized to examine.", inputSchema: { type: "object", properties: { url: { type: "string", format: "uri", description: "Public HTTP or HTTPS website URL." }, maxPages: { type: "integer", minimum: 1, maximum: MAX_PAGES, default: 4, description: "Maximum same-origin pages to inspect (1-6)." } }, required: ["url"], additionalProperties: false } },
   { name: "deep_investigate_website", description: "Run bounded deep static investigation of a public website. Crawls same-origin HTML and analyzes limited same-origin JavaScript and CSS text assets for candidate routes, API strings, imports, browser API usage markers, CSS variables and responsive breakpoints. Does not execute code or launch a browser.", inputSchema: { type: "object", properties: { url: { type: "string", format: "uri" }, maxPages: { type: "integer", minimum: 1, maximum: MAX_PAGES, default: 4 } }, required: ["url"], additionalProperties: false } },
   { name: "get_inspector_capabilities", description: "Describe the hosted Inspector's current capabilities, limits, safety rules and recommended next steps. Use this before promising deep or one-to-one reconstruction.", inputSchema: { type: "object", properties: {}, additionalProperties: false } }
 ];
-const CAPABILITIES = { product: "VRuntime Inspector", version: VERSION, mode: "hosted-quick-and-deep-static-beta", current: ["Public website HTML inspection (Quick Scan)", "Bounded same-origin JavaScript and CSS static analysis (Deep Investigation)", "Candidate route/API string extraction, import references and browser API usage markers", "Same-origin page discovery with a small crawl limit", "Titles, descriptions, headings, links, forms, visible control labels, image alt text and asset references", "Heuristic framework/CMS signals", "Evidence-backed Markdown reconstruction brief", "Remote MCP over Streamable HTTP"], notYetAvailable: ["JavaScript-rendered browser inspection and interaction recording", "Authenticated/private application sessions", "Private backend source or database introspection from URL alone", "Active API probing", "Full JavaScript/TypeScript AST analysis", "Desktop/mobile package inspection", "3D application graph", "Automated code generation (the connected AI performs code generation)"], safety: ["Only inspect targets you are authorized to examine", "Read-only GET requests only", "No authentication bypass", "No code execution from inspected sites", "No IP-literal, local or internal hostname targets", "Same-origin crawl with size and page limits"] };
+const CAPABILITIES = { product: "VRuntime Inspector", version: VERSION, mode: "hosted-quick-and-deep-static-beta", current: ["Public website HTML inspection (Quick Scan)", "Bounded same-origin JavaScript and CSS static analysis (Deep Investigation)", "Candidate route/API string extraction, import references and browser API usage markers", "Same-origin page discovery with a small crawl limit", "Titles, descriptions, headings, links, forms, visible control labels, image alt text and asset references", "Heuristic framework/CMS signals", "Evidence-backed Markdown reconstruction brief", "Remote MCP over Streamable HTTP", "Initial JavaScript-rendered browser capture when the optional Browser Run binding is configured"], notYetAvailable: ["Approved interactive state exploration, hover/click/keyboard workflows and before/after comparison", "Authenticated/private application sessions", "Private backend source or database introspection from URL alone", "Active API probing", "Full JavaScript/TypeScript AST analysis", "Desktop/mobile package inspection", "3D application graph", "Automated code generation (the connected AI performs code generation)"], safety: ["Only inspect targets you are authorized to examine", "Read-only GET requests only", "No authentication bypass", "No code execution from inspected sites", "No IP-literal, local or internal hostname targets", "Same-origin crawl with size and page limits"] };
 function mcpResult(id, result) { return { jsonrpc: "2.0", id, result: { resultType: "complete", ...result, _meta: { "io.modelcontextprotocol/serverInfo": SERVER_INFO }, ttlMs: 300_000, cacheScope: "public" } }; }
 function mcpError(id, code, message) { return { jsonrpc: "2.0", id: id ?? null, error: { code, message } }; }
-async function mcpHandle(request) {
+async function mcpHandle(request, env = {}) {
   const origin = request.headers.get("Origin");
   if (origin && origin !== new URL(request.url).origin) return error("Origin not allowed.", 403);
   let body;
@@ -340,23 +343,33 @@ async function mcpHandle(request) {
     const name = body.params?.name, args = body.params?.arguments || {};
     try {
       let data;
-      if (name === "get_inspector_capabilities") data = CAPABILITIES;
-      else if (name === "inspect_website" || name === "deep_investigate_website") {
+      if (name === "get_inspector_capabilities") data = { ...CAPABILITIES, runtimeBrowser: { configured: Boolean(env.BROWSER), provider: env.BROWSER ? "Cloudflare Browser Run" : "not configured", dailyFreeQuota: "10 browser minutes per day on Workers Free; subject to account quota" } };
+      else if (name === "inspect_website" || name === "deep_investigate_website" || name === "runtime_inspect_website") {
         if (!rateAllowed(request)) return json(mcpError(body.id, -32000, "Inspection rate limit reached. Please wait before trying again."), 429);
         if (typeof args.url !== "string") return json(mcpError(body.id, -32602, "The url argument is required."), 400);
-        data = name === "deep_investigate_website" ? await deepInvestigateWebsite(args.url, args.maxPages ?? 4, new URL(request.url).host) : await inspectWebsite(args.url, args.maxPages ?? 4, new URL(request.url).host);
+        if (name === "runtime_inspect_website") {
+          const target = validateTarget(args.url, new URL(request.url).host);
+          const robots = await robotsPolicy(target.origin);
+          if (isDisallowed(target.pathname, robots)) throw new Error("Runtime inspection skipped because robots.txt disallows this path.");
+          data = await runtimeInspectWebsite(env, { ...args, url: target.href });
+        } else {
+          data = name === "deep_investigate_website" ? await deepInvestigateWebsite(args.url, args.maxPages ?? 4, new URL(request.url).host) : await inspectWebsite(args.url, args.maxPages ?? 4, new URL(request.url).host);
+        }
       } else return json(mcpError(body.id, -32602, "Unknown tool: " + String(name)), 400);
-      return json(mcpResult(body.id, { content: [{ type: "text", text: (name === "inspect_website" || name === "deep_investigate_website") ? data.aiBriefMarkdown : JSON.stringify(data, null, 2) }], structuredContent: data, isError: false }));
+      const content = name === "runtime_inspect_website"
+        ? [{ type: "text", text: "Runtime browser capture complete. Screenshot and structured observations are attached." }, { type: "image", data: data.screenshot.base64, mimeType: data.screenshot.mimeType }]
+        : [{ type: "text", text: (name === "inspect_website" || name === "deep_investigate_website") ? data.aiBriefMarkdown : JSON.stringify(data, null, 2) }];
+      return json(mcpResult(body.id, { content, structuredContent: data, isError: false }));
     } catch (err) { return json(mcpResult(body.id, { content: [{ type: "text", text: "Inspection error: " + err.message }], isError: true })); }
   }
   return json(mcpError(body.id, -32601, "Method not found."), 404);
 }
-async function handleRequestInternal(request) {
+async function handleRequestInternal(request, env = {}) {
   const url = new URL(request.url);
-  if (url.pathname === "/api/health" && request.method === "GET") return json({ status: "ok", service: "vruntime-inspector-cloud", version: VERSION, mcp: "/mcp", modes: ["quick", "deep-static"] });
+  if (url.pathname === "/api/health" && request.method === "GET") return json({ status: "ok", service: "vruntime-inspector-cloud", version: VERSION, mcp: "/mcp", modes: ["quick", "deep-static", ...(env.BROWSER ? ["runtime-browser"] : [])] });
   if (url.pathname === "/mcp") {
     if (request.method !== "POST") return new Response("Method not allowed", { status: 405, headers: { allow: "POST" } });
-    return mcpHandle(request);
+    return mcpHandle(request, env);
   }
   if (url.pathname === "/api/inspect-website") {
     if (request.method !== "POST") return new Response("Method not allowed", { status: 405, headers: { allow: "POST" } });
@@ -371,8 +384,8 @@ async function handleRequestInternal(request) {
   if (request.method === "GET" && url.pathname === "/robots.txt") return new Response("User-agent: *\nDisallow: /api/\nDisallow: /mcp\n", { headers: { "content-type": "text/plain; charset=utf-8" } });
   return error("Not found.", 404);
 }
-export async function handleRequest(request) {
-  try { return securityHeaders(await handleRequestInternal(request)); }
+export async function handleRequest(request, env = {}) {
+  try { return securityHeaders(await handleRequestInternal(request, env)); }
   catch { return securityHeaders(error("Unexpected service error.", 500)); }
 }
 export default { fetch: handleRequest };
