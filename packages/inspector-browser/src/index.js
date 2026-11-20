@@ -17,7 +17,8 @@ export const VIEWPORT_PRESETS = Object.freeze({
 
 const PRIVATE_IPV4 = /^(?:0\.|10\.|127\.|169\.254\.|192\.0\.0\.|192\.0\.2\.|192\.168\.|198\.51\.100\.|203\.0\.113\.|198\.(?:18|19)\.|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|172\.(?:1[6-9]|2\d|3[01])\.|22[4-9]\.|23\.|24\d\.|25[0-5]\.)/;
 const SENSITIVE = /(token|secret|password|passwd|auth|session|signature|api[_-]?key|access[_-]?key|jwt|credential|code)/i;
-const DESTRUCTIVE = /\b(delete|remove|destroy|logout|sign out|log out|sign in|log in|authenticate|purchase|buy now|checkout|pay now|transfer|send|publish|post|submit|upload|install|uninstall|reset|revoke|confirm order)\b/i;
+const DESTRUCTIVE = /\b(delete|remove|destroy|logout|sign out|log out|sign in|log in|authenticate|purchase|buy now|checkout|pay now|transfer|send|publish|post|submit|upload|install|uninstall|reset|revoke|confirm order|place order|subscribe|cancel subscription|erase|format|shutdown|power off)\b/i;
+const SAFE_KEYS = new Set(["Tab", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 
 export function validateRuntimeTarget(value) {
   let url;
@@ -70,21 +71,26 @@ export function classifyRuntimeAction(action) {
     throw new InspectorError("INVALID_ACTION", "A runtime action must include a supported type.");
   }
   const type = action.type.toLowerCase();
-  if (!["click", "hover", "press", "scroll", "navigate"].includes(type)) {
-    throw new InspectorError("UNSUPPORTED_ACTION", "Supported actions are click, hover, press, scroll and navigate.");
+  if (!["click", "hover", "press", "scroll"].includes(type)) {
+    throw new InspectorError("UNSUPPORTED_ACTION", "Supported runtime actions are click, hover, press and scroll. Navigation and form submission are disabled.");
   }
-  const label = String(action.label ?? action.text ?? action.accessibleName ?? "").slice(0, 300);
+  const label = String(action.label ?? "").slice(0, 300);
   if (DESTRUCTIVE.test(label)) {
-    return { type, label, effect: "mutatesTarget", requiresApproval: true, allowed: false, reason: "Authentication, destructive or externally committing controls are never auto-activated." };
+    return { type, label, effect: "mutatesTarget", requiresApproval: true, allowed: false, reason: "Authentication, destructive or externally committing controls are never activated." };
   }
-  if (type === "navigate") {
-    const destination = validateRuntimeTarget(action.url);
-    const source = action.currentUrl ? validateRuntimeTarget(action.currentUrl) : null;
-    if (source && destination.origin !== source.origin) {
-      return { type, label, effect: "accessesNetwork", requiresApproval: true, allowed: false, reason: "Runtime navigation is restricted to the inspected origin." };
+  if (["click", "hover"].includes(type) && (!/^vri-\d{1,5}$/.test(String(action.controlId || "")) || !label.trim())) {
+    throw new InspectorError("INVALID_ACTION_TARGET", "Click and hover require a captured controlId and its exact visible label.");
+  }
+  if (type === "press" && !SAFE_KEYS.has(action.key)) {
+    throw new InspectorError("UNSAFE_KEY", "Only Tab, Escape and arrow keys are supported; text entry and activation keys are disabled.");
+  }
+  if (type === "scroll") {
+    const x = Number(action.deltaX || 0), y = Number(action.deltaY || 0);
+    if (!Number.isInteger(x) || !Number.isInteger(y) || Math.abs(x) > 800 || Math.abs(y) > 1200 || (x === 0 && y === 0)) {
+      throw new InspectorError("INVALID_SCROLL", "Scroll deltas must be non-zero integers within the bounded range.");
     }
   }
-  const effect = type === "navigate" ? "accessesNetwork" : ["click", "press"].includes(type) ? "mutatesTarget" : "readOnly";
+  const effect = type === "click" || type === "press" ? "mutatesTarget" : "readOnly";
   return {
     type, label, effect,
     requiresApproval: true,
