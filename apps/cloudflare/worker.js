@@ -1,4 +1,4 @@
-import { runtimeInspectWebsite } from "../../packages/inspector-browser/src/cloudflare.js";
+import { isRuntimeBrowserEnabled, runtimeInspectWebsite } from "../../packages/inspector-browser/src/cloudflare.js";
 
 const VERSION = "0.5.0";
 const MCP_VERSION = "2026-07-28";
@@ -343,13 +343,14 @@ async function mcpHandle(request, env = {}) {
     const name = body.params?.name, args = body.params?.arguments || {};
     try {
       let data;
-      if (name === "get_inspector_capabilities") data = { ...CAPABILITIES, runtimeBrowser: { configured: Boolean(env.BROWSER), provider: env.BROWSER ? "Cloudflare Browser Run" : "not configured", dailyFreeQuota: "10 browser minutes per day on Workers Free; subject to account quota" } };
+      if (name === "get_inspector_capabilities") data = { ...CAPABILITIES, runtimeBrowser: { configured: isRuntimeBrowserEnabled(env), provider: isRuntimeBrowserEnabled(env) ? "Cloudflare Browser Run (hostname allowlisted)" : "disabled or not configured", allowlistRequired: true, dailyFreeQuota: "10 browser minutes per day on Workers Free; subject to account quota" } };
       else if (name === "inspect_website" || name === "deep_investigate_website" || name === "runtime_inspect_website") {
         if (!rateAllowed(request)) return json(mcpError(body.id, -32000, "Inspection rate limit reached. Please wait before trying again."), 429);
         if (typeof args.url !== "string") return json(mcpError(body.id, -32602, "The url argument is required."), 400);
         if (name === "runtime_inspect_website") {
           const target = validateTarget(args.url, new URL(request.url).host);
           if (target.protocol !== "https:") throw new Error("Runtime browser inspection requires HTTPS.");
+          if (!isRuntimeBrowserEnabled(env, target.hostname)) throw new Error("Hosted runtime is disabled or this hostname is not in RUNTIME_BROWSER_ALLOWED_HOSTS.");
           const robots = await robotsPolicy(target.origin);
           if (isDisallowed(target.pathname, robots)) throw new Error("Runtime inspection skipped because robots.txt disallows this path.");
           data = await runtimeInspectWebsite(env, { ...args, url: target.href, disallowedPaths: robots });
@@ -371,7 +372,7 @@ async function mcpHandle(request, env = {}) {
 }
 async function handleRequestInternal(request, env = {}) {
   const url = new URL(request.url);
-  if (url.pathname === "/api/health" && request.method === "GET") return json({ status: "ok", service: "vruntime-inspector-cloud", version: VERSION, mcp: "/mcp", modes: ["quick", "deep-static", ...(env.BROWSER ? ["runtime-browser"] : [])] });
+  if (url.pathname === "/api/health" && request.method === "GET") return json({ status: "ok", service: "vruntime-inspector-cloud", version: VERSION, mcp: "/mcp", modes: ["quick", "deep-static", ...(isRuntimeBrowserEnabled(env) ? ["runtime-browser"] : [])] });
   if (url.pathname === "/mcp") {
     if (request.method !== "POST") return new Response("Method not allowed", { status: 405, headers: { allow: "POST" } });
     return mcpHandle(request, env);
