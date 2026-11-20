@@ -6,7 +6,7 @@ Runtime Investigation observes a website in an isolated browser rather than infe
 
 ## Provider architecture
 
-- **Hosted provider:** Cloudflare Browser Run through Puppeteer in the existing Worker. The `BROWSER` binding is optional; the MCP tool reports unavailable when it is absent. Browser Run usage is quota-limited.
+- **Hosted provider:** Cloudflare Browser Run through Puppeteer in the existing Worker. It requires the `BROWSER` binding, `RUNTIME_BROWSER_ENABLED=true`, and an exact hostname in `RUNTIME_BROWSER_ALLOWED_HOSTS`. All three conditions are required; the repository defaults runtime off with an empty allowlist.
 - **Local provider:** planned Node.js companion for installed Chromium/Chrome and private/local projects. Browser state and local files remain on the user's machine.
 - **MCP adapter:** exposes shared inspection capabilities and reports provider availability honestly.
 
@@ -25,7 +25,7 @@ The shared policy and evidence normalization live in `packages/inspector-browser
 
 The default is one desktop viewport. Supply up to two distinct presets in `viewports` (for example, `["desktop","mobile"]`) to compare layouts. The total number of page/viewport captures is capped at four; two viewports therefore allow at most two pages each. `maxPages` is bounded from one to four per viewport and reduced automatically to respect the total cap. The crawl follows visible same-origin HTTPS anchor links, strips query strings and fragments, skips common static-asset extensions, and applies the target's wildcard-user-agent robots.txt disallow rules. This is a bounded route sample, not a complete sitemap crawl.
 
-The responsive comparison is structural, not a pixel-level screenshot diff. The browser session is ephemeral and unauthenticated; no user scripts, saved profiles or credentials are loaded. Optional interaction steps are accepted only when each action explicitly sets `approved: true`.
+The responsive comparison is structural, not a pixel-level screenshot diff. The browser session is ephemeral and unauthenticated; no user scripts, saved profiles or credentials are loaded. Optional interaction steps are accepted only when each action explicitly sets `approved: true`. Browser Run is launched with a hostname guardrail containing only the inspected hostname.
 
 ## Approved interaction exploration
 
@@ -47,7 +47,7 @@ Actions apply only to the initial page at the first requested viewport. For each
 - Browser request interception currently allows only same-origin HTTPS GET/HEAD resources. Cross-origin CDNs, fonts, images, scripts, APIs and other methods are blocked; this can materially alter the rendered result. Target JavaScript still executes inside the isolated browser and may issue side-effecting GET requests, so this is not a guarantee of target-side immutability.
 - Popups are closed and dialogs dismissed. Forms are described but never submitted. No credentials, cookies, local files or existing browser profiles are accessed.
 - Structured strings are scrubbed for common credential patterns. Screenshots can still contain visible information rendered by the target; inspect only authorized public targets.
-- Same-origin interception is not a complete defense against DNS rebinding. Provider-level DNS/IP pinning and egress enforcement must be independently reviewed before enabling this hosted browser capability for unrestricted public use.
+- Browser Run hostname guardrails restrict requests to the exact inspected hostname, and the Worker additionally requires an operator-configured exact-host allowlist. Cloudflare documents these guardrails as hostname allowlists, not destination-IP pinning. They therefore do not prove protection against DNS rebinding or a hostname resolving to a private/reserved address. Keep hosted runtime disabled by default; do not add arbitrary user-supplied domains to the allowlist or expose it as an unrestricted public URL-to-browser service until provider-level destination-IP enforcement is independently validated.
 - Bound pages, actions, screenshots, DOM nodes, accessibility nodes, network events, bytes and wall-clock duration. Report truncation and coverage gaps.
 - Clicks are limited to labelled non-submit buttons/tabs outside forms. Destructive/authentication/externally committing labels are blocked. Only Tab, Escape and arrow keys are supported; no text entry or Enter/Space activation is allowed.
 - Same-origin JavaScript may still issue side-effecting GET requests. The action policy reduces accidental interaction risk but cannot guarantee that a target application has no side effects.
@@ -55,7 +55,7 @@ Actions apply only to the initial page at the first requested viewport. For each
 
 ## Quota and provider activation
 
-Cloudflare's published Workers Free allowance is 10 minutes of Browser Run usage per day, with a three-browser concurrency limit. Browser time is shared across Browser Run methods. Keep the provider disabled until the account binding is configured and security controls have been reviewed. Do not silently move the account to a paid plan.
+Cloudflare's published Workers Free allowance is 10 minutes of Browser Run usage per day, with a three-browser concurrency limit. Browser time is shared across Browser Run methods. The repository defaults `RUNTIME_BROWSER_ENABLED` to `false` and `RUNTIME_BROWSER_ALLOWED_HOSTS` to empty. For a controlled test, enable it only for an operator-owned hostname with stable DNS and explicit authorization. The hostname allowlist is a containment measure, not a substitute for destination-IP enforcement. Do not enable arbitrary public targets until DNS-rebinding and egress controls are independently validated. Do not silently move the account to a paid plan.
 
 ## Implementation boundary
 
