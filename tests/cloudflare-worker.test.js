@@ -117,6 +117,7 @@ test("implements modern MCP discovery and tool listing", async () => {
   assert.ok(tools.some(tool => tool.name === "inspect_website"));
   assert.ok(tools.some(tool => tool.name === "deep_investigate_website"));
   assert.ok(tools.some(tool => tool.name === "get_inspector_capabilities"));
+  assert.ok(tools.some(tool => tool.name === "runtime_inspect_website"));
 });
 
 test("executes inspect_website through MCP and returns structured content", async () => {
@@ -135,6 +136,27 @@ test("rejects a mismatched MCP tool-name header and untrusted Origin", async () 
   assert.equal(mismatch.status, 400);
   const origin = await handleRequest(new Request("https://inspector.example/mcp", { method: "POST", headers: { origin: "https://evil.example", "content-type": "application/json" }, body: "{}" }));
   assert.equal(origin.status, 403);
+});
+
+
+test("runtime MCP tool reports an unconfigured browser provider without launching a session", async () => {
+  const meta = { "io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientInfo": { name: "test", version: "1" }, "io.modelcontextprotocol/clientCapabilities": {} };
+  const response = await handleRequest(new Request("https://inspector.example/mcp", {
+    method: "POST",
+    headers: { "content-type": "application/json", "MCP-Protocol-Version": "2026-07-28", "Mcp-Method": "tools/call", "Mcp-Name": "runtime_inspect_website", "CF-Connecting-IP": "198.51.100.40" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 40, method: "tools/call", params: { name: "runtime_inspect_website", arguments: { url: "https://sample.example/", viewport: "desktop" }, _meta: meta } })
+  }), {});
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.result.isError, true);
+  assert.match(payload.result.content[0].text, /Browser Run binding is missing/);
+});
+
+test("health reports runtime browser mode only when a binding is configured", async () => {
+  const unavailable = await handleRequest(new Request("https://inspector.example/api/health"));
+  assert.deepEqual((await unavailable.json()).modes, ["quick", "deep-static"]);
+  const configured = await handleRequest(new Request("https://inspector.example/api/health"), { BROWSER: {} });
+  assert.deepEqual((await configured.json()).modes, ["quick", "deep-static", "runtime-browser"]);
 });
 
 test.after(() => { globalThis.fetch = originalFetch; });
