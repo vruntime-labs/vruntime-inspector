@@ -69,7 +69,7 @@ The same service exposes a remote MCP endpoint for compatible clients:
 - **Initial tools:** `inspect_website`, `get_inspector_capabilities`
 - **AI billing:** the Inspector does not call an LLM. Your connected AI uses its own model and usage allowance for reasoning and code generation.
 
-The hosted beta now offers two modes: Quick Scan performs bounded passive HTML inspection; Deep Investigation adds bounded same-origin JavaScript and CSS source analysis. Deep Investigation does not execute target JavaScript; it analyzes downloaded text assets only. Neither mode clicks through controls, inspect private backend code, access databases, or bypass authentication. Deep Investigation extracts candidate route/API strings, imports, browser API usage markers, CSS custom properties and responsive breakpoint candidates. These are static findings, not proof of runtime behavior. See [hosted service details](apps/cloudflare/README.md) for exact limits and client compatibility notes. ChatGPT custom MCP availability depends on the ChatGPT plan and supported connector features; users on plans without custom MCP access can use the hosted workbench to export a brief and upload it into ChatGPT.
+The deployed hosted beta currently offers two modes: Quick Scan performs bounded passive HTML inspection; Deep Investigation adds bounded same-origin JavaScript and CSS source analysis. Deep Investigation does not execute target JavaScript; it analyzes downloaded text assets only. The runtime-investigation feature branch adds `runtime_inspect_website`, an isolated initial browser capture with screenshot, rendered DOM, accessibility, console and same-origin GET/HEAD observations. That tool requires the optional Cloudflare Browser Run binding and is not live on the deployed Worker yet. It does not perform click-through exploration or inspect private backend code, databases or authenticated sessions. See [hosted service details](apps/cloudflare/README.md) for exact limits and client compatibility notes. ChatGPT custom MCP availability depends on the ChatGPT plan and supported connector features; users on plans without custom MCP access can use the hosted workbench to export a brief and upload it into ChatGPT.
 
 ## Standalone workbench
 
@@ -147,7 +147,7 @@ This separation is intended to keep behavior consistent: a finding produced thro
 
 ### AI clients through MCP
 
-MCP is the primary AI integration surface. The hosted beta currently exposes a remote Streamable HTTP server with bounded website inspection and capability-discovery tools. The connected AI decides how to use the returned evidence and generates code using its own model and usage plan.
+MCP is the primary AI integration surface. The deployed hosted beta exposes a remote Streamable HTTP server with bounded static website inspection and capability-discovery tools. The runtime-investigation feature branch adds `runtime_inspect_website` for initial browser capture when the optional Browser Run binding is configured. The connected AI decides how to use the returned evidence and generates code using its own model and usage plan.
 
 Potential tool families include:
 
@@ -193,7 +193,7 @@ These are project requirements, not a certification that every safeguard is alre
 
 The hosted website-inspection beta is available alongside the first local inspection slice. The local slice includes a HAR inspector, CLI, evidence ledger, and a limited JavaScript module-reference scanner.
 
-**Requirements:** Node.js 22 or newer. The initial slice uses Node.js built-ins and has no third-party runtime dependencies.
+**Requirements:** Node.js 22 or newer. The CLI and static-analysis core use Node.js built-ins. The optional hosted browser provider uses Cloudflare’s `@cloudflare/puppeteer` package and Cloudflare Browser Run; it is not needed for local static-analysis commands.
 
 ~~~bash
 # Run checks
@@ -211,7 +211,7 @@ node apps/cli/src/index.js analyze-js ./src/main.js
 
 Open http://127.0.0.1:4173 for the standalone workbench. Import a .har file up to 10 MiB to inventory captured requests and inspect redacted metadata.
 
-See [Development](README-DEV.md), [Implementation Status](docs/IMPLEMENTATION_STATUS.md), and [Cloud Workbench details](apps/cloudflare/README.md) for exact scope and limitations. The JavaScript scanner is currently regex-based, not a full AST parser. Deep browser automation, full backend inspection, code generation and the other inspection domains are not shipped yet.
+See [Development](README-DEV.md), [Implementation Status](docs/IMPLEMENTATION_STATUS.md), and [Cloud Workbench details](apps/cloudflare/README.md) for exact scope and limitations. The JavaScript scanner is currently regex-based, not a full AST parser. Initial rendered-browser capture is implemented in the runtime-investigation feature branch but is not deployed or verified against a live Browser Run session yet. Interactive state exploration, full backend inspection, code generation and the other inspection domains are not shipped yet.
 
 ## Technical references & acknowledgements
 
