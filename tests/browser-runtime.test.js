@@ -4,7 +4,7 @@ import {
   classifyRuntimeAction, createRuntimeEvidence, createRuntimeInspectionPlan,
   normalizeRuntimeLimits, normalizeViewport, redactRuntimeUrl, validateRuntimeTarget
 } from "../packages/inspector-browser/src/index.js";
-import { discoverRuntimePageTargets, runtimeInspectWebsite } from "../packages/inspector-browser/src/cloudflare.js";
+import { createBrowserRunGuardrails, discoverRuntimePageTargets, isRuntimeBrowserEnabled, runtimeInspectWebsite } from "../packages/inspector-browser/src/cloudflare.js";
 
 test("creates a bounded runtime plan with default desktop viewport", () => {
   const plan = createRuntimeInspectionPlan({ url: "https://example.com/?token=private" });
@@ -73,6 +73,15 @@ test("discovers only bounded same-origin page routes and honors robots disallow 
 test("runtime evidence preserves provenance and redacts source URLs", () => {
   const evidence = createRuntimeEvidence({ classification: "observed", sourceUrl: "https://example.com/?session=secret", detail: "Button became visible." });
   assert.equal(evidence.provenance, "runtime-browser"); assert.doesNotMatch(evidence.sourceUrl, /secret/);
+});
+
+test("hosted runtime is disabled by default and requires an exact configured hostname", () => {
+  const enabled = { BROWSER: {}, RUNTIME_BROWSER_ENABLED: "true", RUNTIME_BROWSER_ALLOWED_HOSTS: "example.com, owned.example.org " };
+  assert.equal(isRuntimeBrowserEnabled(enabled), true);
+  assert.equal(isRuntimeBrowserEnabled(enabled, "example.com"), true);
+  assert.equal(isRuntimeBrowserEnabled(enabled, "www.example.com"), false);
+  assert.equal(isRuntimeBrowserEnabled({ ...enabled, RUNTIME_BROWSER_ENABLED: "false" }, "example.com"), false);
+  assert.deepEqual(createBrowserRunGuardrails("https://example.com/path"), { allowedDomains: ["example.com"] });
 });
 
 test("runtime provider refuses to launch without a browser binding", async () => {
