@@ -24,7 +24,7 @@ Runtime Browser Capture supports an initial-state capture and, on the feature br
 - `runtime_inspect_website({ url, viewport?, waitAfterLoadMs?, actions? })`
 - `get_inspector_capabilities({})`
 
-The runtime tool returns the initial screenshot and, when at least one approved action executes, a final screenshot plus structured initial/final states and per-action before/after summaries. Each action must set `approved: true`; click/hover requires a control ID and exact label from the latest snapshot. Evidence is returned in the MCP response and is not persisted to R2 or a database.
+The runtime tool returns the initial screenshot and, when at least one approved action executes, a final screenshot plus structured initial/final states and per-action before/after summaries. Each action must set `approved: true`; the MCP client must obtain user confirmation before setting it (the Worker cannot independently verify the confirmation). Click/hover requires a control ID and exact label from the latest snapshot. Evidence is returned in the MCP response and is not persisted to R2 or a database.
 
 ## Browser Run quota and deployment
 
