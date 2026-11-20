@@ -117,7 +117,10 @@ test("implements modern MCP discovery and tool listing", async () => {
   assert.ok(tools.some(tool => tool.name === "inspect_website"));
   assert.ok(tools.some(tool => tool.name === "deep_investigate_website"));
   assert.ok(tools.some(tool => tool.name === "get_inspector_capabilities"));
-  assert.ok(tools.some(tool => tool.name === "runtime_inspect_website"));
+  const runtimeTool = tools.find(tool => tool.name === "runtime_inspect_website");
+  assert.ok(runtimeTool);
+  assert.equal(runtimeTool.inputSchema.properties.actions.maxItems, 8);
+  assert.deepEqual(runtimeTool.inputSchema.properties.actions.items.properties.type.enum, ["click", "hover", "press", "scroll"]);
 });
 
 test("executes inspect_website through MCP and returns structured content", async () => {
@@ -150,6 +153,8 @@ test("runtime MCP tool reports an unconfigured browser provider without launchin
   const payload = await response.json();
   assert.equal(payload.result.isError, true);
   assert.match(payload.result.content[0].text, /Browser Run binding is missing/);
+  assert.equal(payload.result.ttlMs, 0);
+  assert.equal(payload.result.cacheScope, "none");
 });
 
 test("health reports runtime browser mode only when a binding is configured", async () => {
