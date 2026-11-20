@@ -162,7 +162,11 @@ test("runtime MCP tool reports an unconfigured browser provider without launchin
 test("health reports runtime browser mode only when a binding is configured", async () => {
   const unavailable = await handleRequest(new Request("https://inspector.example/api/health"));
   assert.deepEqual((await unavailable.json()).modes, ["quick", "deep-static"]);
-  const configured = await handleRequest(new Request("https://inspector.example/api/health"), { BROWSER: {} });
+  const bindingOnly = await handleRequest(new Request("https://inspector.example/api/health"), { BROWSER: {} });
+  assert.deepEqual((await bindingOnly.json()).modes, ["quick", "deep-static"]);
+  const configured = await handleRequest(new Request("https://inspector.example/api/health"), {
+    BROWSER: {}, RUNTIME_BROWSER_ENABLED: "true", RUNTIME_BROWSER_ALLOWED_HOSTS: "example.com"
+  });
   assert.deepEqual((await configured.json()).modes, ["quick", "deep-static", "runtime-browser"]);
 });
 
