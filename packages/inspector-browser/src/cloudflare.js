@@ -1,5 +1,5 @@
 import {
-  classifyRuntimeAction, createRuntimeEvidence, createRuntimeInspectionPlan
+  classifyRuntimeAction, createRuntimeEvidence, createRuntimeInspectionPlan, validateRuntimeTarget
 } from "./index.js";
 
 const MAX_CONSOLE = 80;
@@ -188,7 +188,7 @@ export async function runtimeInspectWebsite(env, input) {
     actions: requestedActions,
     limits: { maxDurationMs: 45_000, maxDomNodes: MAX_DOM_NODES, maxNetworkEvents: MAX_REQUESTS, maxScreenshots: 2, maxPages: 1, maxActions: MAX_ACTIONS_PER_RUN }
   });
-  const target = new URL(plan.target);
+  const target = validateRuntimeTarget(input?.url);
   if (target.protocol !== "https:") throw new Error("Runtime browser inspection requires HTTPS.");
   const viewport = plan.viewport;
   const waitAfterLoadMs = Math.max(0, Math.min(5000, Number(input?.waitAfterLoadMs) || 1200));
