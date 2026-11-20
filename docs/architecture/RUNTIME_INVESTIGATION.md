@@ -12,32 +12,33 @@ Runtime Investigation observes a website in an isolated browser rather than infe
 
 The shared policy and evidence normalization live in `packages/inspector-browser`. Browser execution is isolated in `packages/inspector-browser/src/cloudflare.js`.
 
-## Current runtime capture
+## Runtime crawl and responsive comparison
 
-`runtime_inspect_website({url, viewport, waitAfterLoadMs})` performs one ephemeral browser session and captures:
+`runtime_inspect_website({url, viewport?, viewports?, maxPages?, waitAfterLoadMs?, actions?})` performs one ephemeral browser session and captures:
 
-1. Initial navigation and HTTP status.
-2. Rendered document title, description, headings, links, forms and visible controls.
-3. A bounded rendered DOM summary.
-4. A bounded Chrome accessibility tree snapshot.
-5. Console messages and page errors.
-6. Same-origin request and response metadata.
-7. A viewport screenshot returned as an MCP image attachment.
+1. The initial page plus a bounded queue of discovered same-origin anchor pages.
+2. Rendered title, description, headings, links, forms and visible controls for each successfully rendered page.
+3. A bounded DOM summary and Chrome accessibility tree for each page.
+4. Console messages, page errors and same-origin request/response metadata.
+5. One root-page screenshot per requested viewport.
+6. A structural responsive comparison using viewport dimensions, document overflow and visible heading/control/link counts.
 
-The default viewport is desktop. Tablet and mobile presets are supported. The browser session is ephemeral and unauthenticated; no user scripts, saved profiles or credentials are loaded. Optional interaction steps are accepted only when each action explicitly sets `approved: true`.
+The default is one desktop viewport. Supply up to two distinct presets in `viewports` (for example, `["desktop","mobile"]`) to compare layouts. The total number of page/viewport captures is capped at four; two viewports therefore allow at most two pages each. `maxPages` is bounded from one to four per viewport and reduced automatically to respect the total cap. The crawl follows visible same-origin HTTPS anchor links, strips query strings and fragments, skips common static-asset extensions, and applies the target's wildcard-user-agent robots.txt disallow rules. This is a bounded route sample, not a complete sitemap crawl.
+
+The responsive comparison is structural, not a pixel-level screenshot diff. The browser session is ephemeral and unauthenticated; no user scripts, saved profiles or credentials are loaded. Optional interaction steps are accepted only when each action explicitly sets `approved: true`.
 
 ## Approved interaction exploration
 
 The feature branch extends `runtime_inspect_website` with up to eight ordered, explicitly approved actions per run. Every action must include `approved: true`. The MCP client is responsible for obtaining user confirmation before setting this flag; the hosted Worker treats it as a caller assertion and does not independently verify the user's UI consent. Click and hover actions must reference a `controlId` and exact label returned by the latest runtime snapshot. Clicks are restricted to labelled non-submit buttons and tabs outside forms. Keyboard support is limited to Tab, Escape and arrow keys; scrolling is bounded. Text entry, Enter/Space activation, navigation actions, form submission, downloads and arbitrary JavaScript evaluation are not supported.
 
-For each action the tool records a compact before/after state summary and action result. The response includes the initial screenshot and, if at least one action executed, a final screenshot. Actions that fail validation or omit the approval flag are reported as not executed. This approval flag is not a cryptographic or server-side consent handshake. This is bounded workflow sampling, not unrestricted autonomous browsing.
+Actions apply only to the initial page at the first requested viewport. For each action the tool records a compact before/after state summary and action result. The response includes root-page screenshots for each requested viewport and, if at least one action executed, a final screenshot for the interacted state. Actions that fail validation or omit the approval flag are reported as not executed. This approval flag is not a cryptographic or server-side consent handshake. This is bounded workflow sampling, not unrestricted autonomous browsing.
 
 ## Next runtime stages
 
-1. Add bounded same-origin page exploration and multi-viewport comparison.
-2. Persist evidence bundles with explicit retention and deletion controls.
-3. Build the workbench UI around the same MCP/core operations.
-4. Add the local provider for private sources and installed applications.
+1. Persist evidence bundles with explicit retention, access and deletion controls.
+2. Build runtime workbench controls and screenshot/evidence export around the same core operations.
+3. Add the local Playwright companion for private sources and installed applications.
+4. Add deeper approved workflow exploration and visual comparison only after the interaction consent and network safety model is strengthened.
 
 ## Safety and limits
 
@@ -58,4 +59,4 @@ Cloudflare's published Workers Free allowance is 10 minutes of Browser Run usage
 
 ## Implementation boundary
 
-The runtime provider, initial capture and bounded approved interaction exploration are present in the feature branch. They have not yet been deployed or verified against a live Browser Run session. Multi-page runtime crawling, cross-viewport comparison, persistent evidence storage, local browser support and runtime workbench controls remain pending.
+The runtime provider, bounded same-origin page crawl, structural comparison across up to two viewports, and bounded approved interaction exploration are present in the feature branch. They have not yet been deployed or verified against a live Browser Run session. Persistent evidence storage, local browser support and runtime workbench controls remain pending.
