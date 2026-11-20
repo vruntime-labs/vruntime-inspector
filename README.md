@@ -69,7 +69,7 @@ The same service exposes a remote MCP endpoint for compatible clients:
 - **Initial tools:** `inspect_website`, `get_inspector_capabilities`
 - **AI billing:** the Inspector does not call an LLM. Your connected AI uses its own model and usage allowance for reasoning and code generation.
 
-The hosted beta currently performs bounded, passive HTML inspection. It does not run the target website’s JavaScript, click through controls, inspect private backend code, access databases, or bypass authentication. See [hosted service details](apps/cloudflare/README.md) for exact limits and client compatibility notes. ChatGPT custom MCP availability depends on the ChatGPT plan and supported connector features; users on plans without custom MCP access can use the hosted workbench to export a brief and upload it into ChatGPT.
+The hosted beta now offers two modes: Quick Scan performs bounded passive HTML inspection; Deep Investigation adds bounded same-origin JavaScript and CSS source analysis. Deep Investigation does not execute target JavaScript; it analyzes downloaded text assets only. Neither mode clicks through controls, inspect private backend code, access databases, or bypass authentication. Deep Investigation extracts candidate route/API strings, imports, browser API usage markers, CSS custom properties and responsive breakpoint candidates. These are static findings, not proof of runtime behavior. See [hosted service details](apps/cloudflare/README.md) for exact limits and client compatibility notes. ChatGPT custom MCP availability depends on the ChatGPT plan and supported connector features; users on plans without custom MCP access can use the hosted workbench to export a brief and upload it into ChatGPT.
 
 ## Standalone workbench
 

@@ -9,6 +9,8 @@ function mockFetch(url) {
   const value = String(url);
   if (value.endsWith("/robots.txt")) return Promise.resolve(new Response("User-agent: *\nDisallow: /private", { status: 200, headers: { "content-type": "text/plain" } }));
   if (value.endsWith("/features")) return Promise.resolve(new Response(htmlB, { status: 200, headers: { "content-type": "text/html; charset=utf-8" } }));
+  if (value === "https://sample.example/app.js") return Promise.resolve(new Response('const api = "/api/session"; const route = { path: "/dashboard" }; fetch(api); localStorage.setItem("theme", "dark"); import("./chunk.js");', { status: 200, headers: { "content-type": "application/javascript" } }));
+  if (value === "https://sample.example/site.css") return Promise.resolve(new Response(':root{--brand:#123} @media (max-width: 720px){.app{display:block}} body{font-family:Inter}', { status: 200, headers: { "content-type": "text/css" } }));
   if (value.startsWith("https://sample.example/")) return Promise.resolve(new Response(htmlA, { status: 200, headers: { "content-type": "text/html; charset=utf-8" } }));
   if (value === "https://redirect.example/") return Promise.resolve(new Response(null, { status: 302, headers: { location: "http://127.0.0.1/admin" } }));
   return Promise.resolve(new Response("Not found", { status: 404, headers: { "content-type": "text/plain" } }));
@@ -44,6 +46,36 @@ test("inspects same-origin pages and produces an AI reconstruction brief", async
   assert.match(data.aiBriefMarkdown, /Rebuild guidance for the connected AI/);
   assert.ok(data.coverage.limitations.length >= 4);
   assert.equal(JSON.stringify(data).includes("super-secret-value"), false);
+});
+
+test("deep mode analyzes same-origin JavaScript and CSS without executing them", async () => {
+  globalThis.fetch = mockFetch;
+  const response = await handleRequest(new Request("https://inspector.example/api/inspect-website", { method: "POST", headers: { "content-type": "application/json", "CF-Connecting-IP": "198.51.100.22" }, body: JSON.stringify({ url: "https://sample.example/", maxPages: 1, mode: "deep" }) }));
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.equal(data.mode, "deep-static");
+  assert.equal(data.assets.scripts.length, 1);
+  assert.equal(data.assets.stylesheets.length, 1);
+  assert.ok(data.assets.scripts[0].endpointCandidates.includes("/api/session"));
+  assert.ok(data.assets.scripts[0].routeCandidates.includes("/dashboard"));
+  assert.ok(data.assets.scripts[0].behaviorMarkers.includes("localStorage"));
+  assert.ok(data.assets.stylesheets[0].customProperties.includes("--brand"));
+  assert.match(data.aiBriefMarkdown, /Deep website investigation brief/);
+});
+
+test("deep mode skips cross-origin script assets", async () => {
+  globalThis.fetch = async url => {
+    const value = String(url);
+    if (value.endsWith("/robots.txt")) return new Response("", { status: 404 });
+    if (value === "https://sample.example/") return new Response('<html><head><title>CDN test</title><script src="https://cdn.example/app.js"></script></head><body><h1>Page</h1></body></html>', { status: 200, headers: { "content-type": "text/html" } });
+    if (value.startsWith("https://cdn.example/")) throw new Error("cross-origin asset must not be fetched");
+    return new Response("", { status: 404 });
+  };
+  const response = await handleRequest(new Request("https://inspector.example/api/inspect-website", { method: "POST", headers: { "content-type": "application/json", "CF-Connecting-IP": "198.51.100.23" }, body: JSON.stringify({ url: "https://sample.example/", maxPages: 1, mode: "deep" }) }));
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.equal(data.assets.scripts.length, 0);
+  assert.equal(data.assets.scriptsSkipped, 1);
 });
 
 test("revalidates redirects and refuses a redirect to a private address", async () => {
@@ -83,6 +115,7 @@ test("implements modern MCP discovery and tool listing", async () => {
   const list = await handleRequest(new Request("https://inspector.example/mcp", { method: "POST", headers: { "content-type": "application/json", "MCP-Protocol-Version": "2026-07-28", "Mcp-Method": "tools/list" }, body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: { _meta: meta } }) }));
   const tools = (await list.json()).result.tools;
   assert.ok(tools.some(tool => tool.name === "inspect_website"));
+  assert.ok(tools.some(tool => tool.name === "deep_investigate_website"));
   assert.ok(tools.some(tool => tool.name === "get_inspector_capabilities"));
 });
 

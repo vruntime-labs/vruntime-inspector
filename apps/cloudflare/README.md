@@ -9,16 +9,24 @@ VRuntime Inspector Cloud is a Cloudflare Worker that serves a small browser UI, 
 - Website inspection API: `POST /api/inspect-website`
 - MCP: `POST /mcp` (Streamable HTTP)
 
+## Inspection modes
+
+- **Quick Scan** (inspect_website): bounded same-origin HTML crawl and visible structure inventory.
+- **Deep Investigation** (deep_investigate_website or API mode "deep"): Quick Scan plus up to 8 same-origin JavaScript files and 5 same-origin CSS files. Each asset is limited to 160 KiB and combined asset text to 1 MiB. Extracts candidate routes/API strings, imports, source-map references, browser API markers, CSS custom properties, media queries and responsive breakpoints. Target code is never executed.
+
+Deep Investigation is static analysis, not a rendered browser session. It does not capture screenshots, accessibility trees, click outcomes, hover states, drag/drop, keyboard workflows or runtime network activity. Cross-origin CDN assets are not fetched. Static strings are candidates, not verified runtime behavior.
+
 ## MCP tools
 
 - `inspect_website({ url, maxPages? })`: inspect a public website and return structured page observations plus an AI-ready Markdown reconstruction brief. `maxPages` is limited to 1-6.
+- `deep_investigate_website({ url, maxPages? })`: run the bounded static asset investigation described above.
 - `get_inspector_capabilities({})`: return current capabilities, limitations, and safety boundaries.
 
 The Worker implements MCP protocol revision `2026-07-28` (`server/discover`, stateless per-request metadata, and required standard headers) and accepts the legacy `initialize` handshake for older clients. Refer to the [official Streamable HTTP specification](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http) and [Discovery specification](https://modelcontextprotocol.io/specification/2026-07-28/server/discover).
 
 ## What this beta actually inspects
 
-- Public HTML documents only.
+- Public HTML documents plus a bounded set of same-origin JavaScript and CSS text assets in Deep Investigation mode.
 - Up to six same-origin pages.
 - Page title and meta description, headings, anchor links, button/input labels, form actions/methods, image alt attributes, script and stylesheet URLs, and heuristic technology signals.
 - Visible page copy excerpts and a reconstruction brief for the connected AI.
