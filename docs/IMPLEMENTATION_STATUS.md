@@ -1,30 +1,33 @@
 # Implementation Status
 
-## Working in 0.3.0 beta
+## Hosted inspection beta
 
-- Hosted Cloudflare Worker with a browser workbench and public website URL input.
+- Hosted Cloudflare Worker with a browser workbench, public website URL input and remote MCP endpoint.
 - Quick Scan: bounded passive HTML inspection of up to six same-origin pages.
 - Deep Investigation: bounded static analysis of up to eight same-origin JavaScript assets and five same-origin stylesheets, with per-asset and total byte caps.
-- Static JavaScript signals: candidate API path strings, route strings, import specifiers, source-map references, and browser API usage markers.
-- Static CSS signals: custom properties, approximate selector counts, font-family declarations, media queries, and responsive breakpoint candidates.
-- Separate `deep_investigate_website` MCP tool and `mode: deep` hosted API option.
-- AI-ready Markdown reconstruction brief with page inventory, evidence references, unknowns, and explicit coverage limitations.
+- Static JavaScript signals: candidate API path strings, route strings, import specifiers, source-map references and browser API usage markers.
+- Static CSS signals: custom properties, approximate selector counts, font-family declarations, media queries and responsive breakpoint candidates.
+- Evidence-backed Markdown reconstruction brief with explicit coverage limitations.
 - Remote MCP Streamable HTTP endpoint and existing local CLI/HAR workbench.
 
-## Runtime investigation foundation
+## Runtime browser capture implemented in the feature branch
 
-- Shared browser inspection policy package: target validation, URL redaction, viewport normalization, bounded limits, action classification and runtime evidence provenance.
-- Safe-action policy requires explicit approval for every interaction and blocks destructive or externally committing controls.
-- Runtime plan defaults include bounded pages, actions, screenshots, duration, network events and DOM nodes.
+- Shared browser inspection policy: target validation, URL redaction, viewport normalization, bounded limits, action classification and evidence provenance.
+- Cloudflare Browser Run provider using Puppeteer, loaded only when the browser binding is present.
+- New MCP tool: `runtime_inspect_website({url, viewport?, waitAfterLoadMs?})`.
+- Initial rendered-page capture: screenshot, live DOM summary, headings, links, forms, visible controls, accessibility tree, console messages and same-origin request/response metadata.
+- Browser contexts are ephemeral; popups and dialogs are closed/dismissed; only same-origin HTTP(S) requests are allowed; forms are not submitted.
+- Browser Run binding is declared in `wrangler.toml`; `@cloudflare/puppeteer` is declared as a development dependency.
+- The runtime tool reports a clear unavailable-provider error if the binding is not configured.
 
-## Not shipped yet
+## Runtime not yet complete or production-enabled
 
-- Browser provider implementation or browser launch/session lifecycle.
-- JavaScript-rendered browser inspection, live DOM snapshots, accessibility tree capture, screenshots or screenshot comparison.
-- Interaction execution, hover/keyboard/scroll recording or state-transition capture.
-- Runtime console and network event collection.
-- Hosted managed-browser binding and local browser companion.
-- Runtime MCP tools and workbench UI.
+- The runtime provider has not yet been deployed or exercised against a real Browser Run session.
+- DNS/IP pinning and provider-level egress enforcement require a security review before enabling hosted runtime for general public use. Same-origin request interception is an additional restriction, not a substitute for DNS-rebinding protection.
+- Approved click/hover/keyboard/scroll exploration and before/after state comparison.
+- Multi-page runtime crawl and cross-viewport batch orchestration.
+- Workbench runtime controls and screenshot/evidence bundle export.
+- Local Playwright companion for private websites, installed apps and local files.
 - Authenticated/private application sessions, private backend source or database introspection, active API probing, full AST analysis, Electron/native/runtime binary inspection, 3D graph and code generation.
 - Production-grade global rate limiting, user authentication and abuse monitoring.
 
