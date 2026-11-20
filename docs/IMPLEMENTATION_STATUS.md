@@ -17,6 +17,7 @@
 - New MCP tool: `runtime_inspect_website({url, viewport?, waitAfterLoadMs?, actions?})`.
 - Initial rendered-page capture: screenshot, live DOM summary, headings, links, forms, visible controls, accessibility tree, console messages and same-origin request/response metadata.
 - Optional interaction exploration: up to eight explicitly approved, selector-bound click/hover/safe-key/scroll actions with before/after state summaries and initial/final screenshots. Clicks are limited to labelled non-submit buttons/tabs outside forms; text entry, activation keys, navigation actions and form submission are disabled.
+- Approval limitation: `approved: true` is a caller assertion. The MCP client must obtain user confirmation before setting it; the hosted Worker does not independently verify the user's UI consent.
 - Browser contexts are ephemeral; popups and dialogs are closed/dismissed; only same-origin HTTP(S) requests are allowed; forms are not submitted.
 - Browser Run binding is declared in `wrangler.toml`; `@cloudflare/puppeteer` is declared as a development dependency.
 - The runtime tool reports a clear unavailable-provider error if the binding is not configured.
