@@ -27,7 +27,9 @@ export function validateRuntimeTarget(value) {
   if (url.username || url.password) throw new InspectorError("URL_CREDENTIALS", "URLs containing embedded credentials are not accepted.");
   if (url.port && !["80", "443"].includes(url.port)) throw new InspectorError("NON_STANDARD_PORT", "Only standard HTTP and HTTPS ports are accepted.");
   const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  if (!host || host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal") || host.endsWith(".test") || host === "metadata.google.internal" || PRIVATE_IPV4.test(host) || /^\\d{1,3}(?:\\.\\d{1,3}){3}$/.test(host) || host.includes(":")) {
+  const hostParts = host.split(".");
+  const isIpv4Literal = hostParts.length === 4 && hostParts.every(part => part.length > 0 && [...part].every(char => char >= "0" && char <= "9"));
+  if (!host || host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal") || host.endsWith(".test") || host === "metadata.google.internal" || PRIVATE_IPV4.test(host) || isIpv4Literal || host.includes(":")) {
     throw new InspectorError("PRIVATE_TARGET", "Local, private, internal and reserved hostnames are not accepted by the hosted runtime provider.");
   }
   url.hash = "";
