@@ -13,18 +13,18 @@ VRuntime Inspector Cloud is a Cloudflare Worker that serves the public website w
 
 - **Quick Scan** (`inspect_website`): bounded same-origin HTML crawl and visible structure inventory.
 - **Deep Investigation** (`deep_investigate_website`): Quick Scan plus bounded same-origin JavaScript and CSS text analysis. Extracts candidate routes/API strings, imports, source-map references, browser API markers, CSS custom properties, media queries and responsive breakpoints. Target code is not executed in this mode.
-- **Runtime Browser Capture** (`runtime_inspect_website`): uses Cloudflare Browser Run and Puppeteer to render one public HTTPS page in an ephemeral browser session. Captures a viewport screenshot, rendered DOM summary, visible controls, headings, links, forms, accessibility tree, console messages and same-origin request/response metadata. Supports desktop, tablet and mobile viewports.
+- **Runtime Browser Investigation** (`runtime_inspect_website`): uses Cloudflare Browser Run and Puppeteer to render a bounded set of discovered same-origin public HTTPS pages in an ephemeral browser session. Captures rendered DOM, visible controls, headings, links, forms, accessibility trees, console messages and same-origin request/response metadata. Supports one or two viewport presets per run, with a total cap of four page/viewport captures.
 
-Runtime Browser Capture supports an initial-state capture and, on the feature branch, up to eight explicitly approved actions with before/after state summaries. Clicks are limited to labelled non-submit buttons/tabs outside forms; hover, Tab/Escape/arrow keys and bounded scrolling are supported. Text entry, Enter/Space activation, form submission, downloads, saved browser profiles and cross-origin navigation are disabled. Only same-origin HTTP(S) requests are allowed; cross-origin scripts, fonts, images and APIs are blocked and may reduce visual fidelity. The runtime tool remains unavailable on the deployed Worker until the optional `BROWSER` binding is configured and deployed.
+Runtime Browser Investigation supports a bounded same-origin anchor crawl, structural responsive comparison (not a pixel-level diff), and up to eight explicitly approved actions with before/after state summaries on the initial page at the first viewport. The crawl strips query strings/fragments, skips common static assets and applies wildcard-user-agent robots.txt disallow rules. Clicks are limited to labelled non-submit buttons/tabs outside forms; hover, Tab/Escape/arrow keys and bounded scrolling are supported. Text entry, Enter/Space activation, form submission, downloads, saved browser profiles and cross-origin navigation are disabled. Only same-origin HTTP(S) requests are allowed; cross-origin scripts, fonts, images and APIs are blocked and may reduce visual fidelity. The runtime tool remains unavailable on the deployed Worker until the optional `BROWSER` binding is configured and deployed.
 
 ## MCP tools
 
 - `inspect_website({ url, maxPages? })`
 - `deep_investigate_website({ url, maxPages? })`
-- `runtime_inspect_website({ url, viewport?, waitAfterLoadMs?, actions? })`
+- `runtime_inspect_website({ url, viewport?, viewports?, maxPages?, waitAfterLoadMs?, actions? })`
 - `get_inspector_capabilities({})`
 
-The runtime tool returns the initial screenshot and, when at least one approved action executes, a final screenshot plus structured initial/final states and per-action before/after summaries. Each action must set `approved: true`; the MCP client must obtain user confirmation before setting it (the Worker cannot independently verify the confirmation). Click/hover requires a control ID and exact label from the latest snapshot. Evidence is returned in the MCP response and is not persisted to R2 or a database.
+The runtime tool returns root-page screenshots for each requested viewport, a structural responsive comparison, per-page DOM/accessibility observations and, when at least one approved action executes, a final screenshot plus per-action before/after summaries. Each action must set `approved: true`; the MCP client must obtain user confirmation before setting it (the Worker cannot independently verify the confirmation). Click/hover requires a control ID and exact label from the latest snapshot. Evidence is returned in the MCP response and is not persisted to R2 or a database.
 
 ## Browser Run quota and deployment
 
