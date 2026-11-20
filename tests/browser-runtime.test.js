@@ -29,21 +29,28 @@ test("clamps requested limits and validates viewport bounds", () => {
   assert.throws(() => normalizeViewport({ width: 100, height: 100 }));
 });
 
-test("requires explicit approval and blocks destructive actions", () => {
-  assert.equal(classifyRuntimeAction({ type: "click", label: "Open settings" }).allowed, false);
-  const approvedClick = classifyRuntimeAction({ type: "click", label: "Open settings", approved: true });
+test("requires explicit approval, captured control IDs and safe action labels", () => {
+  assert.throws(() => classifyRuntimeAction({ type: "click", label: "Open settings" }), /controlId/);
+  assert.equal(classifyRuntimeAction({ type: "click", controlId: "vri-12", label: "Open settings" }).allowed, false);
+  const approvedClick = classifyRuntimeAction({ type: "click", controlId: "vri-12", label: "Open settings", approved: true });
   assert.equal(approvedClick.allowed, true);
   assert.equal(approvedClick.effect, "mutatesTarget");
-  const destructive = classifyRuntimeAction({ type: "click", label: "Delete account", approved: true });
-  assert.equal(destructive.allowed, false); assert.equal(destructive.effect, "mutatesTarget");
-  assert.equal(classifyRuntimeAction({ type: "click", label: "Sign in", approved: true }).allowed, false);
+  const destructive = classifyRuntimeAction({ type: "click", controlId: "vri-12", label: "Delete account", approved: true });
+  assert.equal(destructive.allowed, false);
+  assert.equal(destructive.effect, "mutatesTarget");
+  assert.equal(classifyRuntimeAction({ type: "click", controlId: "vri-12", label: "Sign in", approved: true }).allowed, false);
+  assert.equal(classifyRuntimeAction({ type: "hover", controlId: "vri-12", label: "Menu", approved: true }).allowed, true);
 });
 
-test("blocks cross-origin navigation and unsupported actions", () => {
-  assert.equal(classifyRuntimeAction({ type: "navigate", url: "https://outside.example", currentUrl: "https://example.com", approved: true }).allowed, false);
-  assert.throws(() => classifyRuntimeAction({ type: "evaluate", expression: "alert(1)" }));
+test("limits keyboard actions and scrolling to safe bounded inputs", () => {
+  assert.equal(classifyRuntimeAction({ type: "press", key: "Tab", approved: true }).allowed, true);
+  assert.equal(classifyRuntimeAction({ type: "press", key: "Enter", approved: true }).allowed, false);
+  assert.throws(() => classifyRuntimeAction({ type: "press", key: "Enter", approved: true }), /Only Tab/);
+  assert.equal(classifyRuntimeAction({ type: "scroll", deltaY: 500, approved: true }).allowed, true);
+  assert.throws(() => classifyRuntimeAction({ type: "scroll", deltaY: 5000, approved: true }), /bounded range/);
+  assert.throws(() => classifyRuntimeAction({ type: "navigate", url: "https://outside.example", approved: true }), /Navigation and form submission are disabled/);
+  assert.throws(() => classifyRuntimeAction({ type: "evaluate", expression: "alert(1)" }), /Supported runtime actions/);
 });
-
 test("runtime evidence preserves provenance and redacts source URLs", () => {
   const evidence = createRuntimeEvidence({ classification: "observed", sourceUrl: "https://example.com/?session=secret", detail: "Button became visible." });
   assert.equal(evidence.provenance, "runtime-browser"); assert.doesNotMatch(evidence.sourceUrl, /secret/);
