@@ -364,7 +364,7 @@ async function handleRequestInternal(request) {
     let data;
     try { const text = await request.text(); if (new TextEncoder().encode(text).length > MAX_BODY) return error("Request body is too large.", 413); data = JSON.parse(text); }
     catch { return error("Send a valid JSON request."); }
-    try { return json(await inspectWebsite(data.url, data.maxPages ?? 4, url.host)); }
+    try { const result = data.mode === "deep" ? await deepInvestigateWebsite(data.url, data.maxPages ?? 4, url.host) : await inspectWebsite(data.url, data.maxPages ?? 4, url.host); return json(result); }
     catch (err) { return error(err.message, 400); }
   }
   if (request.method === "GET" && url.pathname === "/") return new Response(PAGE, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" } });
