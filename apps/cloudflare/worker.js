@@ -365,7 +365,7 @@ async function mcpHandle(request, env = {}) {
           ]
         : [{ type: "text", text: (name === "inspect_website" || name === "deep_investigate_website") ? data.aiBriefMarkdown : JSON.stringify(data, null, 2) }];
       return json(mcpResult(body.id, { content, structuredContent: data, isError: false }, name === "runtime_inspect_website" ? { ttlMs: 0, cacheScope: "none" } : {}));
-    } catch (err) { return json(mcpResult(body.id, { content: [{ type: "text", text: "Inspection error: " + err.message }], isError: true })); }
+    } catch (err) { return json(mcpResult(body.id, { content: [{ type: "text", text: "Inspection error: " + err.message }], isError: true }, name === "runtime_inspect_website" ? { ttlMs: 0, cacheScope: "none" } : {})); }
   }
   return json(mcpError(body.id, -32601, "Method not found."), 404);
 }
