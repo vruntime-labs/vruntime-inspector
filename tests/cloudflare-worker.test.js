@@ -120,6 +120,8 @@ test("implements modern MCP discovery and tool listing", async () => {
   const runtimeTool = tools.find(tool => tool.name === "runtime_inspect_website");
   assert.ok(runtimeTool);
   assert.equal(runtimeTool.inputSchema.properties.actions.maxItems, 8);
+  assert.equal(runtimeTool.inputSchema.properties.maxPages.maximum, 4);
+  assert.equal(runtimeTool.inputSchema.properties.viewports.maxItems, 2);
   assert.deepEqual(runtimeTool.inputSchema.properties.actions.items.properties.type.enum, ["click", "hover", "press", "scroll"]);
 });
 
