@@ -39,7 +39,7 @@ The default viewport is desktop. Tablet and mobile presets are supported. The in
 
 - Only inspect targets the user owns or is explicitly authorized to examine.
 - Hosted runtime requires HTTPS, rejects embedded credentials, IP literals and common local/internal/reserved hostnames, and follows the existing robots.txt check for the target path.
-- Browser request interception currently allows only same-origin HTTP(S) resources. Cross-origin CDNs, fonts, images, scripts and APIs are blocked; this can materially alter the rendered result.
+- Browser request interception currently allows only same-origin HTTPS GET/HEAD resources. Cross-origin CDNs, fonts, images, scripts, APIs and other methods are blocked; this can materially alter the rendered result. Target JavaScript still executes inside the isolated browser and may issue side-effecting GET requests, so this is not a guarantee of target-side immutability.
 - Popups are closed and dialogs dismissed. Forms are described but never submitted. No credentials, cookies, local files or existing browser profiles are accessed.
 - Structured strings are scrubbed for common credential patterns. Screenshots can still contain visible information rendered by the target; inspect only authorized public targets.
 - Same-origin interception is not a complete defense against DNS rebinding. Provider-level DNS/IP pinning and egress enforcement must be independently reviewed before enabling this hosted browser capability for unrestricted public use.
