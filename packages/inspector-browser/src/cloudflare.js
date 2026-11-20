@@ -264,6 +264,7 @@ export async function runtimeInspectWebsite(env, input) {
     let primaryRoot = null;
     let primaryAccessibility = [];
     let navigationStatus = null;
+    let pageDiscoveryTruncated = false;
     for (let viewportIndex = 0; viewportIndex < viewports.length; viewportIndex++) {
       const viewport = viewports[viewportIndex];
       await page.setViewport({ width: viewport.width, height: viewport.height, deviceScaleFactor: viewport.deviceScaleFactor, isMobile: viewport.isMobile });
@@ -295,12 +296,16 @@ export async function runtimeInspectWebsite(env, input) {
               primaryRoot = pageData;
               primaryAccessibility = accessibility;
               navigationStatus = response?.status() ?? null;
-              const candidates = discoverRuntimePageTargets(pageData.links, page.url(), effectiveMaxPages - 1, disallowedPaths);
-              for (const candidate of candidates) if (!crawlUrls.includes(candidate) && crawlUrls.length < effectiveMaxPages) crawlUrls.push(candidate);
+              const available = effectiveMaxPages - crawlUrls.length;
+              const candidates = discoverRuntimePageTargets(pageData.links, page.url(), available + 1, disallowedPaths);
+              if (candidates.length > available) pageDiscoveryTruncated = true;
+              for (const candidate of candidates.slice(0, available)) if (!crawlUrls.includes(candidate)) crawlUrls.push(candidate);
             }
           } else if (viewportIndex === 0) {
-            const candidates = discoverRuntimePageTargets(pageData.links, page.url(), effectiveMaxPages - pages.filter(item => item.viewport.name === viewport.name).length, disallowedPaths);
-            for (const candidate of candidates) if (!crawlUrls.includes(candidate) && crawlUrls.length < effectiveMaxPages) crawlUrls.push(candidate);
+            const available = effectiveMaxPages - crawlUrls.length;
+            const candidates = discoverRuntimePageTargets(pageData.links, page.url(), available + 1, disallowedPaths);
+            if (candidates.length > available) pageDiscoveryTruncated = true;
+            for (const candidate of candidates.slice(0, available)) if (!crawlUrls.includes(candidate)) crawlUrls.push(candidate);
           }
           evidence.push(createRuntimeEvidence({ classification: "observed", sourceUrl: page.url(), pageId: pageRecord.pageId, detail: "Captured rendered page " + pageRecord.pageId + " at " + viewport.name + " viewport." }));
         } catch (error) {
@@ -348,7 +353,7 @@ export async function runtimeInspectWebsite(env, input) {
       }
       if (actionResults.some(result => result.status === "executed")) finalScreenshot = await takeScreenshot(page);
     }
-    const finalUrl = page.url();
+    const finalUrl = actionResults.some(result => result.status === "executed") ? page.url() : target.href;
     const responsiveViewports = viewports.map(viewport => {
       const root = pages.find(item => item.page && item.viewport.name === viewport.name);
       return root ? {
@@ -421,7 +426,7 @@ export async function runtimeInspectWebsite(env, input) {
           console: consoleMessages.length >= MAX_CONSOLE,
           network: networkEvents.length >= MAX_REQUESTS,
           actions: Array.isArray(input?.actions) && input.actions.length > MAX_ACTIONS_PER_RUN,
-          pages: pages.filter(item => item.page).length >= effectiveMaxPages * viewports.length
+          pages: pageDiscoveryTruncated
         },
       }
     };
