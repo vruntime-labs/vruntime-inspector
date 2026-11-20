@@ -1,60 +1,54 @@
 # Hosted Cloud Workbench
 
-VRuntime Inspector Cloud is a Cloudflare Worker that serves a small browser UI, a bounded public-website inspection API, and a remote MCP endpoint. It does not call an LLM or generate code. The connected AI client uses its own model and usage allowance.
+VRuntime Inspector Cloud is a Cloudflare Worker that serves the public website workbench, deterministic inspection APIs and a remote MCP endpoint. It does not call an LLM or generate code. The connected AI client uses its own model and usage allowance.
 
 ## Endpoints
 
 - Web workbench: `https://vruntime-inspector-cloud.vruntimelabs.workers.dev/`
 - Health: `/api/health`
-- Website inspection API: `POST /api/inspect-website`
+- Static website inspection API: `POST /api/inspect-website`
 - MCP: `POST /mcp` (Streamable HTTP)
 
 ## Inspection modes
 
-- **Quick Scan** (inspect_website): bounded same-origin HTML crawl and visible structure inventory.
-- **Deep Investigation** (deep_investigate_website or API mode "deep"): Quick Scan plus up to 8 same-origin JavaScript files and 5 same-origin CSS files. Each asset is limited to 160 KiB and combined asset text to 1 MiB. Extracts candidate routes/API strings, imports, source-map references, browser API markers, CSS custom properties, media queries and responsive breakpoints. Target code is never executed.
+- **Quick Scan** (`inspect_website`): bounded same-origin HTML crawl and visible structure inventory.
+- **Deep Investigation** (`deep_investigate_website`): Quick Scan plus bounded same-origin JavaScript and CSS text analysis. Extracts candidate routes/API strings, imports, source-map references, browser API markers, CSS custom properties, media queries and responsive breakpoints. Target code is not executed in this mode.
+- **Runtime Browser Capture** (`runtime_inspect_website`): uses Cloudflare Browser Run and Puppeteer to render one public HTTPS page in an ephemeral browser session. Captures a viewport screenshot, rendered DOM summary, visible controls, headings, links, forms, accessibility tree, console messages and same-origin request/response metadata. Supports desktop, tablet and mobile viewports.
 
-Deep Investigation is static analysis, not a rendered browser session. It does not capture screenshots, accessibility trees, click outcomes, hover states, drag/drop, keyboard workflows or runtime network activity. Cross-origin CDN assets are not fetched. Static strings are candidates, not verified runtime behavior.
+Runtime Browser Capture is an initial-state capture, not a full autonomous exploration. It does not click controls, submit forms, enter credentials, download files or access a saved browser profile. Only same-origin HTTP(S) requests are allowed; cross-origin scripts, fonts, images and APIs are blocked and may reduce visual fidelity. The runtime tool is unavailable until the optional `BROWSER` binding is configured and deployed.
 
 ## MCP tools
 
-- `inspect_website({ url, maxPages? })`: inspect a public website and return structured page observations plus an AI-ready Markdown reconstruction brief. `maxPages` is limited to 1-6.
-- `deep_investigate_website({ url, maxPages? })`: run the bounded static asset investigation described above.
-- `get_inspector_capabilities({})`: return current capabilities, limitations, and safety boundaries.
+- `inspect_website({ url, maxPages? })`
+- `deep_investigate_website({ url, maxPages? })`
+- `runtime_inspect_website({ url, viewport?, waitAfterLoadMs? })`
+- `get_inspector_capabilities({})`
 
-The Worker implements MCP protocol revision `2026-07-28` (`server/discover`, stateless per-request metadata, and required standard headers) and accepts the legacy `initialize` handshake for older clients. Refer to the [official Streamable HTTP specification](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http) and [Discovery specification](https://modelcontextprotocol.io/specification/2026-07-28/server/discover).
+The runtime tool returns an MCP image attachment for the screenshot plus structured observations. The screenshot and observation payload are returned in the tool response; this initial implementation does not persist them to R2 or a database.
 
-## What this beta actually inspects
+## Browser Run quota and deployment
 
-- Public HTML documents plus a bounded set of same-origin JavaScript and CSS text assets in Deep Investigation mode.
-- Up to six same-origin pages.
-- Page title and meta description, headings, anchor links, button/input labels, form actions/methods, image alt attributes, script and stylesheet URLs, and heuristic technology signals.
-- Visible page copy excerpts and a reconstruction brief for the connected AI.
+Cloudflare's published Workers Free allowance includes 10 minutes of Browser Run usage per day and up to three concurrent browser sessions. The free quota is a hard daily allowance; requests can fail after it is exhausted. Monitor usage in the Cloudflare dashboard and do not upgrade or enable paid overage without an explicit decision.
 
-It does not execute target JavaScript, interact with controls, inspect private source code or backend internals, inspect databases, probe APIs, bypass authentication, or guarantee a one-to-one reconstruction. It reports unknowns rather than inventing inaccessible implementation details.
-
-## Safety and service limits
-
-- Only HTTP(S) URLs with standard ports are accepted. Embedded URL credentials, IP literals, local/internal hostnames, and requests to the Worker itself are rejected.
-- Redirects are revalidated and cross-origin redirects are not followed.
-- Only same-origin pages are crawled. `robots.txt` disallow rules are respected for the simple wildcard user-agent case.
-- Each HTML response is limited to 512 KiB and each fetch has a 10-second timeout. Request bodies are limited to 16 KiB.
-- Sensitive query parameter values are redacted in exported URLs and common credential-like strings are redacted from visible text excerpts.
-- The service uses a best-effort in-memory per-isolate throttle. This is not a durable, global abuse-control system. Add Cloudflare Rate Limiting, authentication or an equivalent control before treating this as a high-traffic production service.
-- Cloudflare Workers global outbound `fetch()` is restricted to public Internet destinations by default; do not add private-network bindings to this public URL-inspection Worker. See [Cloudflare's Workers security model](https://developers.cloudflare.com/workers/reference/security-model/).
-
-Inspect only targets you own or are explicitly authorized to examine.
-
-## Deploy your own instance
-
-The Worker has no third-party runtime dependencies. With Node.js and Wrangler installed and authenticated to your Cloudflare account, deploy it from the repository root:
+The repository includes `wrangler.toml` with the `BROWSER` binding and `nodejs_compat` flag, plus `@cloudflare/puppeteer` as a development dependency. Install dependencies and deploy from the repository root:
 
 ```bash
-npx wrangler deploy apps/cloudflare/worker.js --name vruntime-inspector-cloud --compatibility-date 2026-11-20
+npm install
+npx wrangler deploy
 ```
 
-The deployed URL is based on your Cloudflare Workers subdomain. Do not deploy this script over an unrelated Worker. The VRuntime Labs hosted endpoint is maintained separately from the user's local workbench.
+Do not deploy this configuration over an unrelated Worker. Verify the target Worker name and account before deployment. A successful build is not proof that Browser Run is enabled; verify the binding and then run one controlled smoke test.
+
+## Security boundaries
+
+- Inspect only targets you own or are explicitly authorized to examine.
+- Runtime currently requires HTTPS and rejects embedded credentials, IP literals, local/internal/reserved hostnames and the Worker itself.
+- Browser requests are intercepted and restricted to the inspected origin. Popups are closed, dialogs dismissed, and form submission is not part of the runtime workflow.
+- The runtime browser is ephemeral and unauthenticated. It does not reuse a user's browser profile, cookies, local files or saved credentials.
+- Sensitive query parameters and common credential-like strings are redacted from structured observations.
+- Same-origin interception is not a complete defense against DNS rebinding. Provider-level DNS/IP pinning and outbound egress enforcement must be reviewed before enabling this hosted browser capability for unrestricted public use.
+- The Worker retains a best-effort in-memory request throttle, not a durable global abuse-control system.
 
 ## ChatGPT Free users
 
-If your ChatGPT plan/client does not support custom remote MCP servers, use the hosted web workbench to inspect the target, download the Markdown brief, and upload it into ChatGPT. Compatible MCP clients can connect directly to the `/mcp` endpoint.
+If your ChatGPT client does not support custom remote MCP servers, use the hosted workbench for Quick Scan and Deep Investigation, then upload the Markdown report into ChatGPT. Runtime Browser Capture is currently exposed through MCP; the web workbench UI does not yet offer it.
