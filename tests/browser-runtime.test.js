@@ -14,7 +14,7 @@ test("creates a bounded runtime plan with default desktop viewport", () => {
 });
 
 test("rejects local, private, reserved and credential-bearing targets", () => {
-  for (const url of ["http://localhost", "http://127.0.0.1", "http://192.168.1.2", "https://app.internal", "https://user:pass@example.com", "https://example.test"]) assert.throws(() => validateRuntimeTarget(url));
+  for (const url of ["http://localhost", "http://127.0.0.1", "http://192.168.1.2", "http://100.64.0.1", "https://app.internal", "https://user:pass@example.com", "https://example.test"]) assert.throws(() => validateRuntimeTarget(url));
 });
 
 test("redacts sensitive query parameters without changing ordinary values", () => {
@@ -30,9 +30,12 @@ test("clamps requested limits and validates viewport bounds", () => {
 
 test("requires explicit approval and blocks destructive actions", () => {
   assert.equal(classifyRuntimeAction({ type: "click", label: "Open settings" }).allowed, false);
-  assert.equal(classifyRuntimeAction({ type: "click", label: "Open settings", approved: true }).allowed, true);
+  const approvedClick = classifyRuntimeAction({ type: "click", label: "Open settings", approved: true });
+  assert.equal(approvedClick.allowed, true);
+  assert.equal(approvedClick.effect, "mutatesTarget");
   const destructive = classifyRuntimeAction({ type: "click", label: "Delete account", approved: true });
   assert.equal(destructive.allowed, false); assert.equal(destructive.effect, "mutatesTarget");
+  assert.equal(classifyRuntimeAction({ type: "click", label: "Sign in", approved: true }).allowed, false);
 });
 
 test("blocks cross-origin navigation and unsupported actions", () => {
