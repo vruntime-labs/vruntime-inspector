@@ -249,13 +249,13 @@ export async function runtimeInspectWebsite(env, input) {
       if (result.status === "executed") {
         latestPage = await capturePageData(page);
         latestAccessibility = await captureAccessibility(page, evidence, page.url());
-        finalScreenshot = await takeScreenshot(page);
         evidence.push(createRuntimeEvidence({ classification: "observed", sourceUrl: page.url(), actionId, detail: "Approved " + action.type + " action produced a captured after-state." }));
       }
       actionResults.push({ actionId, type: action.type, controlId: action.controlId || null, label: safeText(action.label || "", 180), before, after: summarizeState(latestPage), ...result });
       if (stopped) break;
     }
 
+    if (actionResults.some(result => result.status === "executed")) finalScreenshot = await takeScreenshot(page);
     const finalUrl = page.url();
     evidence.unshift(
       createRuntimeEvidence({ classification: "observed", sourceUrl: finalUrl, detail: "Rendered page title: " + (latestPage.title || "(no title)") }),
@@ -291,7 +291,7 @@ export async function runtimeInspectWebsite(env, input) {
           "DOM, accessibility, console and network capture are bounded and may be truncated.",
           "Browser Run's Free plan includes 10 minutes of browser use per day; availability ends when the daily quota is exhausted."
         ],
-        truncated: { dom: latestPage.domTruncated, accessibility: latestAccessibility.length >= MAX_ACCESSIBILITY_NODES, console: consoleMessages.length >= MAX_CONSOLE, network: networkEvents.length >= MAX_REQUESTS, actions: requestedActions.length > MAX_ACTIONS_PER_RUN }
+        truncated: { dom: latestPage.domTruncated, accessibility: latestAccessibility.length >= MAX_ACCESSIBILITY_NODES, console: consoleMessages.length >= MAX_CONSOLE, network: networkEvents.length >= MAX_REQUESTS, actions: Array.isArray(input?.actions) && input.actions.length > MAX_ACTIONS_PER_RUN }
       }
     };
   } finally {
