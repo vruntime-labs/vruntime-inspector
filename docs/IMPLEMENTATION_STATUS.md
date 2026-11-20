@@ -14,7 +14,9 @@
 
 - Shared browser inspection policy: target validation, URL redaction, viewport normalization, bounded limits, action classification and evidence provenance.
 - Cloudflare Browser Run provider using Puppeteer, loaded only when the browser binding is present.
-- New MCP tool: `runtime_inspect_website({url, viewport?, waitAfterLoadMs?, actions?})`.
+- New MCP tool: `runtime_inspect_website({url, viewport?, viewports?, maxPages?, waitAfterLoadMs?, actions?})`.
+- Bounded same-origin runtime crawl: discovers visible anchor links, strips query strings/fragments, skips common static assets, and applies wildcard-user-agent robots.txt disallow rules.
+- Structural responsive comparison across up to two viewport presets, with a total cap of four page/viewport captures per run. This is not a pixel-level visual diff.
 - Initial rendered-page capture: screenshot, live DOM summary, headings, links, forms, visible controls, accessibility tree, console messages and same-origin request/response metadata.
 - Optional interaction exploration: up to eight explicitly approved, selector-bound click/hover/safe-key/scroll actions with before/after state summaries and initial/final screenshots. Clicks are limited to labelled non-submit buttons/tabs outside forms; text entry, activation keys, navigation actions and form submission are disabled.
 - Approval limitation: `approved: true` is a caller assertion. The MCP client must obtain user confirmation before setting it; the hosted Worker does not independently verify the user's UI consent.
@@ -26,7 +28,6 @@
 
 - The runtime provider has not yet been deployed or exercised against a real Browser Run session.
 - DNS/IP pinning and provider-level egress enforcement require a security review before enabling hosted runtime for general public use. Same-origin request interception is an additional restriction, not a substitute for DNS-rebinding protection.
-- Multi-page runtime crawl and cross-viewport batch orchestration.
 - Workbench runtime controls and screenshot/evidence bundle export.
 - Local Playwright companion for private websites, installed apps and local files.
 - Authenticated/private application sessions, private backend source or database introspection, active API probing, full AST analysis, Electron/native/runtime binary inspection, 3D graph and code generation.
