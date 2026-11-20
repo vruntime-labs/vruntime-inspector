@@ -2,43 +2,54 @@
 
 ## Purpose
 
-Runtime Investigation is the next inspection capability after Quick Scan and Deep Static Investigation. It must observe a website in an isolated browser, not infer interactive behavior from source text. Runtime evidence is stored alongside static evidence and remains explicitly classified as observed, derived, inferred or unknown.
+Runtime Investigation observes a website in an isolated browser rather than inferring interactive behavior from source text. Runtime evidence is stored alongside static evidence and remains classified as observed, derived, inferred or unknown.
 
 ## Provider architecture
 
-The shared browser package defines policy, normalized viewports, bounded inspection plans, action classification and evidence provenance. Browser execution belongs to a provider adapter:
+- **Hosted provider:** Cloudflare Browser Run through Puppeteer in the existing Worker. The `BROWSER` binding is optional; the MCP tool reports unavailable when it is absent. Browser Run usage is quota-limited.
+- **Local provider:** planned Node.js companion for installed Chromium/Chrome and private/local projects. Browser state and local files remain on the user's machine.
+- **MCP adapter:** exposes shared inspection capabilities and reports provider availability honestly.
 
-- **Hosted provider:** optional managed browser runtime attached to the Cloudflare Worker. It must be explicitly configured, quota-aware and disabled when its binding or credentials are absent. Do not silently switch to a paid service.
-- **Local provider:** optional Node.js companion for installed Chromium/Chrome and private/local projects. Browser state and local files remain on the user's machine.
-- **MCP adapter:** exposes the same shared operations regardless of provider. Provider capability discovery must report unavailable operations honestly.
+The shared policy and evidence normalization live in `packages/inspector-browser`. Browser execution is isolated in `packages/inspector-browser/src/cloudflare.js`.
 
-A provider must not be implemented as a second independent inspector. It returns normalized observations for the shared evidence model.
+## Current runtime capture
 
-## Investigation sequence
+`runtime_inspect_website({url, viewport, waitAfterLoadMs})` performs one ephemeral browser session and captures:
 
-1. Validate the target and establish an isolated browser context.
-2. Capture initial navigation, load milestones, viewport, title, URL and screenshot.
-3. Capture rendered DOM structure, accessible names/roles/states, headings, forms, links and visible controls.
-4. Record console errors and network request/response metadata generated during normal page loading and approved interactions. Do not probe guessed endpoints.
-5. Discover same-origin navigation and visible interactive controls.
-6. Explore a bounded number of approved click, hover, keyboard and scroll transitions. Do not submit forms, purchase, delete, publish, upload, install, log out or perform other externally committing actions.
-7. Capture after-state DOM, accessibility snapshot and screenshot; link each transition to its initiating action.
-8. Repeat at desktop, tablet and mobile viewports within the configured limits.
-9. Compare runtime observations with static HTML/JS/CSS findings and produce a reconstruction brief plus evidence manifest.
+1. Initial navigation and HTTP status.
+2. Rendered document title, description, headings, links, forms and visible controls.
+3. A bounded rendered DOM summary.
+4. A bounded Chrome accessibility tree snapshot.
+5. Console messages and page errors.
+6. Same-origin request and response metadata.
+7. A viewport screenshot returned as an MCP image attachment.
+
+The default viewport is desktop. Tablet and mobile presets are supported. The initial implementation does not preserve browser sessions between calls, execute user-provided scripts, click controls or submit forms.
+
+## Next runtime stages
+
+1. Add approved, selector-bound click/hover/keyboard/scroll actions with explicit approval per action.
+2. Capture before/after DOM, accessibility and screenshot snapshots, linking each transition to its action.
+3. Add bounded same-origin page exploration and multi-viewport comparison.
+4. Persist evidence bundles with explicit retention and deletion controls.
+5. Build the workbench UI around the same MCP/core operations.
+6. Add the local provider for private sources and installed applications.
 
 ## Safety and limits
 
 - Only inspect targets the user owns or is explicitly authorized to examine.
-- Browser sessions are isolated and temporary by default; close them on completion, timeout or cancellation.
-- No authentication bypass, CAPTCHA bypass, DRM bypass, stealth evasion or hidden credential collection.
-- No form submission, file upload/download, popup, clipboard read, browser profile reuse or local file access by default.
-- Every interactive action requires explicit approval. Destructive or externally committing controls remain blocked even if requested as an automatic exploration step.
-- Restrict navigation and subresources to the approved origin unless a separate explicit policy grants a documented exception.
-- Revalidate redirects and DNS/IP destinations to prevent private-network access and DNS rebinding. A hostname-only URL check is insufficient for a browser provider.
-- Redact credentials, cookies, authorization headers, sensitive query parameters, form values and likely secrets before evidence leaves the browser provider.
-- Bound pages, actions, screenshots, DOM nodes, network events, bytes and wall-clock duration. Report truncation and coverage gaps.
+- Hosted runtime requires HTTPS, rejects embedded credentials, IP literals and common local/internal/reserved hostnames, and follows the existing robots.txt check for the target path.
+- Browser request interception currently allows only same-origin HTTP(S) resources. Cross-origin CDNs, fonts, images, scripts and APIs are blocked; this can materially alter the rendered result.
+- Popups are closed and dialogs dismissed. Forms are described but never submitted. No credentials, cookies, local files or existing browser profiles are accessed.
+- Structured strings are scrubbed for common credential patterns. Screenshots can still contain visible information rendered by the target; inspect only authorized public targets.
+- Same-origin interception is not a complete defense against DNS rebinding. Provider-level DNS/IP pinning and egress enforcement must be independently reviewed before enabling this hosted browser capability for unrestricted public use.
+- Bound pages, actions, screenshots, DOM nodes, accessibility nodes, network events, bytes and wall-clock duration. Report truncation and coverage gaps.
 - Never claim a state was inspected when the browser did not render it. Never infer absence from partial coverage.
 
-## Current implementation boundary
+## Quota and provider activation
 
-The shared policy and evidence foundation is implemented in `packages/inspector-browser`. It does not launch a browser. Browser providers, live DOM/accessibility capture, screenshots, network event capture and the MCP runtime tools remain pending provider integration and end-to-end verification.
+Cloudflare's published Workers Free allowance is 10 minutes of Browser Run usage per day, with a three-browser concurrency limit. Browser time is shared across Browser Run methods. Keep the provider disabled until the account binding is configured and security controls have been reviewed. Do not silently move the account to a paid plan.
+
+## Implementation boundary
+
+The runtime provider code and MCP tool are present in the feature branch. They have not yet been deployed or verified against a live Browser Run session. Interactive exploration, state-transition comparison, persistent evidence storage, local browser support and runtime workbench controls remain pending.
