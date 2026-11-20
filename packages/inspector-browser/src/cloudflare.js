@@ -264,12 +264,10 @@ export async function runtimeInspectWebsite(env, input) {
     let primaryRoot = null;
     let primaryAccessibility = [];
     let navigationStatus = null;
-    let skippedByRobots = 0;
     for (let viewportIndex = 0; viewportIndex < viewports.length; viewportIndex++) {
       const viewport = viewports[viewportIndex];
       await page.setViewport({ width: viewport.width, height: viewport.height, deviceScaleFactor: viewport.deviceScaleFactor, isMobile: viewport.isMobile });
-      const viewportUrls = viewportIndex === 0 ? [target.href] : crawlUrls.slice(0, effectiveMaxPages);
-      const discovered = [];
+      const viewportUrls = viewportIndex === 0 ? crawlUrls : crawlUrls.slice(0, effectiveMaxPages);
       for (let pageIndex = 0; pageIndex < viewportUrls.length && pages.filter(item => item.viewport.name === viewport.name).length < effectiveMaxPages; pageIndex++) {
         if (Date.now() - startedAt > 37_000) break;
         const pageUrl = viewportUrls[pageIndex];
@@ -297,10 +295,12 @@ export async function runtimeInspectWebsite(env, input) {
               primaryRoot = pageData;
               primaryAccessibility = accessibility;
               navigationStatus = response?.status() ?? null;
-              discovered.push(...discoverRuntimePageTargets(pageData.links, page.url(), effectiveMaxPages - 1, disallowedPaths));
+              const candidates = discoverRuntimePageTargets(pageData.links, page.url(), effectiveMaxPages - 1, disallowedPaths);
+              for (const candidate of candidates) if (!crawlUrls.includes(candidate) && crawlUrls.length < effectiveMaxPages) crawlUrls.push(candidate);
             }
           } else if (viewportIndex === 0) {
-            discovered.push(...discoverRuntimePageTargets(pageData.links, page.url(), effectiveMaxPages - pages.length, disallowedPaths));
+            const candidates = discoverRuntimePageTargets(pageData.links, page.url(), effectiveMaxPages - pages.filter(item => item.viewport.name === viewport.name).length, disallowedPaths);
+            for (const candidate of candidates) if (!crawlUrls.includes(candidate) && crawlUrls.length < effectiveMaxPages) crawlUrls.push(candidate);
           }
           evidence.push(createRuntimeEvidence({ classification: "observed", sourceUrl: page.url(), pageId: pageRecord.pageId, detail: "Captured rendered page " + pageRecord.pageId + " at " + viewport.name + " viewport." }));
         } catch (error) {
@@ -312,11 +312,6 @@ export async function runtimeInspectWebsite(env, input) {
             error: safeText(error?.message || "Navigation failed.", 240),
             classification: "unknown"
           });
-        }
-        if (viewportIndex === 0 && pageIndex === 0) {
-          crawlUrls = [target.href, ...discovered];
-        } else if (viewportIndex === 0 && discovered.length) {
-          for (const candidate of discovered) if (!crawlUrls.includes(candidate) && crawlUrls.length < effectiveMaxPages) crawlUrls.push(candidate);
         }
       }
     }
@@ -354,7 +349,6 @@ export async function runtimeInspectWebsite(env, input) {
       if (actionResults.some(result => result.status === "executed")) finalScreenshot = await takeScreenshot(page);
     }
     const finalUrl = page.url();
-    const rootPages = pages.filter(item => item.page && item.url === target.pathname.replace(/\/$/, "") || (item.page && item.url === target.href.split("?")[0]));
     const responsiveViewports = viewports.map(viewport => {
       const root = pages.find(item => item.page && item.viewport.name === viewport.name);
       return root ? {
@@ -429,7 +423,6 @@ export async function runtimeInspectWebsite(env, input) {
           actions: Array.isArray(input?.actions) && input.actions.length > MAX_ACTIONS_PER_RUN,
           pages: pages.filter(item => item.page).length >= effectiveMaxPages * viewports.length
         },
-        robotsSkipped: skippedByRobots
       }
     };
   } finally {
