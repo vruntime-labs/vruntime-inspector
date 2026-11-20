@@ -88,6 +88,15 @@ test("runtime provider refuses to launch without a browser binding", async () =>
   await assert.rejects(() => runtimeInspectWebsite({}, { url: "https://example.com" }), /Browser Run binding is missing/);
 });
 
+test("runtime provider rejects hosts outside the operator allowlist before launching", async () => {
+  await assert.rejects(
+    () => runtimeInspectWebsite({
+      BROWSER: {}, RUNTIME_BROWSER_ENABLED: "true", RUNTIME_BROWSER_ALLOWED_HOSTS: "owned.example.com"
+    }, { url: "https://unlisted.example.net/" }),
+    /not in RUNTIME_BROWSER_ALLOWED_HOSTS/
+  );
+});
+
 test("runtime provider requires HTTPS before loading its browser dependency", async () => {
   await assert.rejects(() => runtimeInspectWebsite({ BROWSER: {} }, { url: "http://example.com" }), /requires HTTPS/);
 });
