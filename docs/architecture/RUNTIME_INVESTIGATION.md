@@ -28,9 +28,9 @@ The default viewport is desktop. Tablet and mobile presets are supported. The br
 
 ## Approved interaction exploration
 
-The feature branch extends `runtime_inspect_website` with up to eight ordered, explicitly approved actions per run. Every action must include `approved: true`. Click and hover actions must reference a `controlId` and exact label returned by the latest runtime snapshot. Clicks are restricted to labelled non-submit buttons and tabs outside forms. Keyboard support is limited to Tab, Escape and arrow keys; scrolling is bounded. Text entry, Enter/Space activation, navigation actions, form submission, downloads and arbitrary JavaScript evaluation are not supported.
+The feature branch extends `runtime_inspect_website` with up to eight ordered, explicitly approved actions per run. Every action must include `approved: true`. The MCP client is responsible for obtaining user confirmation before setting this flag; the hosted Worker treats it as a caller assertion and does not independently verify the user's UI consent. Click and hover actions must reference a `controlId` and exact label returned by the latest runtime snapshot. Clicks are restricted to labelled non-submit buttons and tabs outside forms. Keyboard support is limited to Tab, Escape and arrow keys; scrolling is bounded. Text entry, Enter/Space activation, navigation actions, form submission, downloads and arbitrary JavaScript evaluation are not supported.
 
-For each action the tool records a compact before/after state summary and action result. The response includes the initial screenshot and, if at least one action executed, a final screenshot. Actions that fail validation or are not explicitly approved are reported as not executed. This is bounded workflow sampling, not unrestricted autonomous browsing.
+For each action the tool records a compact before/after state summary and action result. The response includes the initial screenshot and, if at least one action executed, a final screenshot. Actions that fail validation or omit the approval flag are reported as not executed. This approval flag is not a cryptographic or server-side consent handshake. This is bounded workflow sampling, not unrestricted autonomous browsing.
 
 ## Next runtime stages
 
