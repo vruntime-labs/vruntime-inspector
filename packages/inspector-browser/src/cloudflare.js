@@ -72,7 +72,7 @@ export async function runtimeInspectWebsite(env, input) {
     await page.setRequestInterception(true);
     page.on("request", request => {
       const url = request.url();
-      const allowed = isSafeSameOriginResource(url, target.origin);
+      const allowed = isSafeSameOriginResource(url, target.origin) && ["GET", "HEAD"].includes(request.method().toUpperCase());
       if (networkEvents.length < MAX_REQUESTS) {
         networkEvents.push({
           kind: "request",
