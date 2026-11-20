@@ -44,7 +44,6 @@ test("requires explicit approval, captured control IDs and safe action labels", 
 
 test("limits keyboard actions and scrolling to safe bounded inputs", () => {
   assert.equal(classifyRuntimeAction({ type: "press", key: "Tab", approved: true }).allowed, true);
-  assert.equal(classifyRuntimeAction({ type: "press", key: "Enter", approved: true }).allowed, false);
   assert.throws(() => classifyRuntimeAction({ type: "press", key: "Enter", approved: true }), /Only Tab/);
   assert.equal(classifyRuntimeAction({ type: "scroll", deltaY: 500, approved: true }).allowed, true);
   assert.throws(() => classifyRuntimeAction({ type: "scroll", deltaY: 5000, approved: true }), /bounded range/);
