@@ -12,6 +12,17 @@ function safeText(value, max = 240) {
   return String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
 }
 
+function scrubData(value) {
+  if (typeof value === "string") {
+    return value
+      .replace(/\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi, "Bearer [REDACTED]")
+      .replace(/((?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passwd|secret|session|auth|jwt)\s*[:=]\s*)[^\s,;]+/gi, "$1[REDACTED]");
+  }
+  if (Array.isArray(value)) return value.map(scrubData);
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, scrubData(item)]));
+  return value;
+}
+
 function isSafeSameOriginResource(value, origin) {
   try {
     const url = new URL(value);
@@ -43,6 +54,7 @@ export async function runtimeInspectWebsite(env, input) {
     limits: { maxDurationMs: 45_000, maxDomNodes: MAX_DOM_NODES, maxNetworkEvents: MAX_REQUESTS, maxScreenshots: 1, maxPages: 1, maxActions: 1 }
   });
   const target = new URL(plan.target);
+  if (target.protocol !== "https:") throw new Error("Runtime browser inspection requires HTTPS.");
   const viewport = plan.viewport;
   const waitAfterLoadMs = Math.max(0, Math.min(5000, Number(input?.waitAfterLoadMs) || 1200));
   const { default: puppeteer } = await import("@cloudflare/puppeteer");
@@ -85,7 +97,7 @@ export async function runtimeInspectWebsite(env, input) {
 
     const navigation = await page.goto(target.href, { waitUntil: "domcontentloaded", timeout: 20_000 });
     if (waitAfterLoadMs) await new Promise(resolve => setTimeout(resolve, waitAfterLoadMs));
-    const pageData = await page.evaluate(maxNodes => {
+    const pageData = scrubData(await page.evaluate(maxNodes => {
       const clean = (value, max = 240) => String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
       const visible = element => {
         const style = getComputedStyle(element);
@@ -123,7 +135,7 @@ export async function runtimeInspectWebsite(env, input) {
         domTruncated: document.querySelectorAll("body *").length > maxNodes,
         counts: { headings: headings.length, controls: controls.length, links: links.length, forms: forms.length }
       };
-    }, MAX_DOM_NODES);
+    }, MAX_DOM_NODES));
 
     let accessibility = [];
     try {
