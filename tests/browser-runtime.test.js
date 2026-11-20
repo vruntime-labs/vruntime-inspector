@@ -4,6 +4,7 @@ import {
   classifyRuntimeAction, createRuntimeEvidence, createRuntimeInspectionPlan,
   normalizeRuntimeLimits, normalizeViewport, redactRuntimeUrl, validateRuntimeTarget
 } from "../packages/inspector-browser/src/index.js";
+import { runtimeInspectWebsite } from "../packages/inspector-browser/src/cloudflare.js";
 
 test("creates a bounded runtime plan with default desktop viewport", () => {
   const plan = createRuntimeInspectionPlan({ url: "https://example.com/?token=private" });
@@ -14,7 +15,7 @@ test("creates a bounded runtime plan with default desktop viewport", () => {
 });
 
 test("rejects local, private, reserved and credential-bearing targets", () => {
-  for (const url of ["http://localhost", "http://127.0.0.1", "http://192.168.1.2", "http://100.64.0.1", "https://app.internal", "https://user:pass@example.com", "https://example.test"]) assert.throws(() => validateRuntimeTarget(url));
+  for (const url of ["http://localhost", "http://127.0.0.1", "http://192.168.1.2", "http://100.64.0.1", "https://app.internal", "https://user:pass@example.com", "https://example.test", "https://8.8.8.8", "http://2130706433"]) assert.throws(() => validateRuntimeTarget(url));
 });
 
 test("redacts sensitive query parameters without changing ordinary values", () => {
@@ -46,4 +47,12 @@ test("blocks cross-origin navigation and unsupported actions", () => {
 test("runtime evidence preserves provenance and redacts source URLs", () => {
   const evidence = createRuntimeEvidence({ classification: "observed", sourceUrl: "https://example.com/?session=secret", detail: "Button became visible." });
   assert.equal(evidence.provenance, "runtime-browser"); assert.doesNotMatch(evidence.sourceUrl, /secret/);
+});
+
+test("runtime provider refuses to launch without a browser binding", async () => {
+  await assert.rejects(() => runtimeInspectWebsite({}, { url: "https://example.com" }), /Browser Run binding is missing/);
+});
+
+test("runtime provider requires HTTPS before loading its browser dependency", async () => {
+  await assert.rejects(() => runtimeInspectWebsite({ BROWSER: {} }, { url: "http://example.com" }), /requires HTTPS/);
 });
