@@ -179,13 +179,27 @@ These are project requirements, not a certification that every safeguard is alre
 
 ## Quick start
 
-The repository is currently at an early documentation stage. Installation commands, package filters, Docker instructions, and connection URLs will be added after the corresponding application and packages exist and have been verified.
+The first local inspection slice is now runnable. It includes a HAR inspector in the standalone workbench, a local CLI, an evidence ledger, and a limited JavaScript module-reference scanner.
 
-For now:
+**Requirements:** Node.js 22 or newer. The initial slice uses Node.js built-ins and has no third-party runtime dependencies.
 
-1. Explore the [repository](https://github.com/vruntime-labs/vruntime-inspector).
-2. Read the architecture and evidence principles on this page.
-3. Check the project issues and releases for implementation progress.
+~~~bash
+# Run checks
+npm test
+npm run check
+
+# Start the standalone workbench (loopback only)
+npm run web
+
+# CLI help and local file analysis
+node apps/cli/src/index.js help
+node apps/cli/src/index.js inspect-har ./capture.har
+node apps/cli/src/index.js analyze-js ./src/main.js
+~~~
+
+Open http://127.0.0.1:4173 for the standalone workbench. Import a .har file up to 10 MiB to inventory captured requests and inspect redacted metadata.
+
+See [Development](README-DEV.md) and [Implementation Status](docs/IMPLEMENTATION_STATUS.md) for exact scope and limitations. The JavaScript scanner is currently regex-based, not a full AST parser. MCP, remote hosting, and the other inspection domains are not shipped yet.
 
 ## Technical references & acknowledgements
 

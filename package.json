@@ -1,0 +1,1 @@
+{"name":"vruntime-inspector","version":"0.1.0","private":true,"type":"module","workspaces":["packages/*","apps/*"],"engines":{"node":">=20.11.0"},"scripts":{"test":"node --test tests/*.test.js","check":"node scripts/check.mjs","cli":"node apps/cli/src/index.js","web":"node apps/web/server.js"}}
