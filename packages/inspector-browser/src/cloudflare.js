@@ -1,5 +1,5 @@
 import {
-  classifyRuntimeAction, createRuntimeEvidence, createRuntimeInspectionPlan, validateRuntimeTarget
+  classifyRuntimeAction, createRuntimeEvidence, createRuntimeInspectionPlan, normalizeViewport, validateRuntimeTarget
 } from "./index.js";
 
 const MAX_CONSOLE = 80;
@@ -175,6 +175,28 @@ async function runApprovedAction(page, action, planOrigin) {
   return { status: "executed", classification, reason: "Approved action executed in the isolated browser." };
 }
 
+
+export function discoverRuntimePageTargets(links, baseUrl, maxTargets = 3, disallowedPaths = []) {
+  const base = new URL(baseUrl);
+  const found = [];
+  const seen = new Set([base.pathname]);
+  const blockedExtensions = /\.(?:avif|css|csv|docx?|eot|gif|ico|jpe?g|js|json|mjs|mp[34]|pdf|png|svg|ttf|txt|webm|webp|woff2?|xlsx?|zip)$/i;
+  for (const link of Array.isArray(links) ? links : []) {
+    if (found.length >= maxTargets) break;
+    try {
+      const candidate = new URL(link.href, base);
+      if (candidate.origin !== base.origin || candidate.protocol !== "https:" || candidate.username || candidate.password) continue;
+      candidate.search = "";
+      candidate.hash = "";
+      if (candidate.pathname === base.pathname || seen.has(candidate.pathname) || blockedExtensions.test(candidate.pathname)) continue;
+      if (disallowedPaths.some(rule => rule === "/" || (rule && candidate.pathname.startsWith(rule)))) continue;
+      seen.add(candidate.pathname);
+      found.push(candidate.href);
+    } catch {}
+  }
+  return found;
+}
+
 export async function runtimeInspectWebsite(env, input) {
   if (!env?.BROWSER) {
     const error = new Error("Hosted runtime browser is not configured. The Browser Run binding is missing; static inspection remains available.");
@@ -182,16 +204,26 @@ export async function runtimeInspectWebsite(env, input) {
     throw error;
   }
   const requestedActions = Array.isArray(input?.actions) ? input.actions.slice(0, MAX_ACTIONS_PER_RUN) : [];
+  const requestedViewports = Array.isArray(input?.viewports) && input.viewports.length
+    ? input.viewports
+    : [input?.viewport ?? "desktop"];
+  if (requestedViewports.length > 2) throw new Error("Runtime responsive comparison supports at most two viewports per run.");
+  const viewports = requestedViewports.map(normalizeViewport);
+  if (new Set(viewports.map(item => item.name)).size !== viewports.length) throw new Error("Choose distinct viewports for comparison.");
+  const requestedMaxPages = input?.maxPages === undefined ? 3 : Number(input.maxPages);
+  if (!Number.isInteger(requestedMaxPages) || requestedMaxPages < 1 || requestedMaxPages > 4) throw new Error("maxPages must be an integer between 1 and 4.");
+  const effectiveMaxPages = Math.min(requestedMaxPages, Math.floor(4 / viewports.length));
   const plan = createRuntimeInspectionPlan({
     url: input?.url,
-    viewport: input?.viewport ?? "desktop",
+    viewport: viewports[0],
     actions: requestedActions,
-    limits: { maxDurationMs: 45_000, maxDomNodes: MAX_DOM_NODES, maxNetworkEvents: MAX_REQUESTS, maxScreenshots: 2, maxPages: 1, maxActions: MAX_ACTIONS_PER_RUN }
+    limits: { maxDurationMs: 45_000, maxDomNodes: MAX_DOM_NODES, maxNetworkEvents: MAX_REQUESTS, maxScreenshots: 3, maxPages: effectiveMaxPages, maxActions: MAX_ACTIONS_PER_RUN }
   });
   const target = validateRuntimeTarget(input?.url);
   if (target.protocol !== "https:") throw new Error("Runtime browser inspection requires HTTPS.");
-  const viewport = plan.viewport;
-  const waitAfterLoadMs = Math.max(0, Math.min(5000, Number(input?.waitAfterLoadMs) || 1200));
+  const disallowedPaths = Array.isArray(input?.disallowedPaths) ? input.disallowedPaths.filter(value => typeof value === "string").slice(0, 100) : [];
+  if (disallowedPaths.some(rule => rule === "/" || (rule && target.pathname.startsWith(rule)))) throw new Error("Runtime inspection skipped because robots.txt disallows this path.");
+  const waitAfterLoadMs = Math.max(0, Math.min(5000, Number(input?.waitAfterLoadMs ?? 1200)));
   const { default: puppeteer } = await import("@cloudflare/puppeteer");
   const browser = await puppeteer.launch(env.BROWSER);
   const startedAt = Date.now();
@@ -199,11 +231,12 @@ export async function runtimeInspectWebsite(env, input) {
   const networkEvents = [];
   const evidence = [];
   const actionResults = [];
+  const pages = [];
+  const screenshots = [];
   let page;
   try {
     page = await browser.newPage();
-    await page.setViewport({ width: viewport.width, height: viewport.height, deviceScaleFactor: viewport.deviceScaleFactor, isMobile: viewport.isMobile });
-    await page.setDefaultNavigationTimeout(20_000);
+    await page.setDefaultNavigationTimeout(9000);
     await page.setDefaultTimeout(5000);
     await page.setRequestInterception(true);
     page.on("request", request => {
@@ -227,39 +260,128 @@ export async function runtimeInspectWebsite(env, input) {
     page.on("popup", popup => popup.close().catch(() => {}));
     page.on("dialog", dialog => dialog.dismiss().catch(() => {}));
 
-    const navigation = await page.goto(target.href, { waitUntil: "domcontentloaded", timeout: 20_000 });
-    if (waitAfterLoadMs) await new Promise(resolve => setTimeout(resolve, waitAfterLoadMs));
-    const initialPage = await capturePageData(page);
-    const initialAccessibility = await captureAccessibility(page, evidence, target.href);
-    const initialScreenshot = await takeScreenshot(page);
+    let crawlUrls = [target.href];
+    let primaryRoot = null;
+    let primaryAccessibility = [];
+    let navigationStatus = null;
+    let skippedByRobots = 0;
+    for (let viewportIndex = 0; viewportIndex < viewports.length; viewportIndex++) {
+      const viewport = viewports[viewportIndex];
+      await page.setViewport({ width: viewport.width, height: viewport.height, deviceScaleFactor: viewport.deviceScaleFactor, isMobile: viewport.isMobile });
+      const viewportUrls = viewportIndex === 0 ? [target.href] : crawlUrls.slice(0, effectiveMaxPages);
+      const discovered = [];
+      for (let pageIndex = 0; pageIndex < viewportUrls.length && pages.filter(item => item.viewport.name === viewport.name).length < effectiveMaxPages; pageIndex++) {
+        if (Date.now() - startedAt > 37_000) break;
+        const pageUrl = viewportUrls[pageIndex];
+        let response;
+        try {
+          response = await page.goto(pageUrl, { waitUntil: "domcontentloaded", timeout: 9000 });
+          const currentUrl = new URL(page.url());
+          if (currentUrl.origin !== target.origin) throw new Error("Navigation left the inspected origin.");
+          const wait = pageIndex === 0 ? waitAfterLoadMs : Math.min(waitAfterLoadMs, 300);
+          if (wait) await new Promise(resolve => setTimeout(resolve, wait));
+          const pageData = await capturePageData(page);
+          const accessibility = await captureAccessibility(page, evidence, page.url());
+          const pageRecord = {
+            pageId: "page-" + (pages.length + 1),
+            viewport,
+            url: page.url().split("?")[0],
+            navigationStatus: response?.status() ?? null,
+            page: pageData,
+            accessibility
+          };
+          pages.push(pageRecord);
+          if (pageIndex === 0) {
+            screenshots.push({ viewport: viewport.name, screenshot: await takeScreenshot(page) });
+            if (viewportIndex === 0) {
+              primaryRoot = pageData;
+              primaryAccessibility = accessibility;
+              navigationStatus = response?.status() ?? null;
+              discovered.push(...discoverRuntimePageTargets(pageData.links, page.url(), effectiveMaxPages - 1, disallowedPaths));
+            }
+          } else if (viewportIndex === 0) {
+            discovered.push(...discoverRuntimePageTargets(pageData.links, page.url(), effectiveMaxPages - pages.length, disallowedPaths));
+          }
+          evidence.push(createRuntimeEvidence({ classification: "observed", sourceUrl: page.url(), pageId: pageRecord.pageId, detail: "Captured rendered page " + pageRecord.pageId + " at " + viewport.name + " viewport." }));
+        } catch (error) {
+          pages.push({
+            pageId: "page-" + (pages.length + 1),
+            viewport,
+            url: pageUrl.split("?")[0],
+            navigationStatus: response?.status() ?? null,
+            error: safeText(error?.message || "Navigation failed.", 240),
+            classification: "unknown"
+          });
+        }
+        if (viewportIndex === 0 && pageIndex === 0) {
+          crawlUrls = [target.href, ...discovered];
+        } else if (viewportIndex === 0 && discovered.length) {
+          for (const candidate of discovered) if (!crawlUrls.includes(candidate) && crawlUrls.length < effectiveMaxPages) crawlUrls.push(candidate);
+        }
+      }
+    }
+    if (!primaryRoot) throw new Error("The initial page could not be rendered; no runtime page evidence was captured.");
+    const initialPage = primaryRoot;
+    const initialAccessibility = primaryAccessibility;
     let latestPage = initialPage;
     let latestAccessibility = initialAccessibility;
-    let finalScreenshot = initialScreenshot;
+    let finalScreenshot = screenshots[0].screenshot;
 
-    for (let index = 0; index < requestedActions.length; index++) {
-      if (Date.now() - startedAt > 40_000) {
-        actionResults.push({ actionId: "action-" + (index + 1), status: "not-executed", reason: "The runtime time budget was reached." });
-        break;
+    if (requestedActions.length && Date.now() - startedAt < 39_000) {
+      await page.setViewport({ width: viewports[0].width, height: viewports[0].height, deviceScaleFactor: viewports[0].deviceScaleFactor, isMobile: viewports[0].isMobile });
+      await page.goto(target.href, { waitUntil: "domcontentloaded", timeout: 9000 });
+      if (waitAfterLoadMs) await new Promise(resolve => setTimeout(resolve, Math.min(waitAfterLoadMs, 500)));
+      latestPage = await capturePageData(page);
+      latestAccessibility = await captureAccessibility(page, evidence, page.url());
+      for (let index = 0; index < requestedActions.length; index++) {
+        if (Date.now() - startedAt > 42_000) {
+          actionResults.push({ actionId: "action-" + (index + 1), status: "not-executed", reason: "The runtime time budget was reached." });
+          break;
+        }
+        const action = requestedActions[index];
+        const actionId = "action-" + (index + 1);
+        const before = summarizeState(latestPage);
+        const result = await runApprovedAction(page, action, target.origin);
+        const stopped = result.status === "stopped";
+        if (result.status === "executed") {
+          latestPage = await capturePageData(page);
+          latestAccessibility = await captureAccessibility(page, evidence, page.url());
+          evidence.push(createRuntimeEvidence({ classification: "observed", sourceUrl: page.url(), actionId, detail: "Approved " + action.type + " action produced a captured after-state." }));
+        }
+        actionResults.push({ actionId, type: action.type, controlId: action.controlId || null, label: safeText(action.label || "", 180), before, after: summarizeState(latestPage), ...result });
+        if (stopped) break;
       }
-      const action = requestedActions[index];
-      const actionId = "action-" + (index + 1);
-      const before = summarizeState(latestPage);
-      const result = await runApprovedAction(page, action, target.origin);
-      const stopped = result.status === "stopped";
-      if (result.status === "executed") {
-        latestPage = await capturePageData(page);
-        latestAccessibility = await captureAccessibility(page, evidence, page.url());
-        evidence.push(createRuntimeEvidence({ classification: "observed", sourceUrl: page.url(), actionId, detail: "Approved " + action.type + " action produced a captured after-state." }));
-      }
-      actionResults.push({ actionId, type: action.type, controlId: action.controlId || null, label: safeText(action.label || "", 180), before, after: summarizeState(latestPage), ...result });
-      if (stopped) break;
+      if (actionResults.some(result => result.status === "executed")) finalScreenshot = await takeScreenshot(page);
     }
-
-    if (actionResults.some(result => result.status === "executed")) finalScreenshot = await takeScreenshot(page);
     const finalUrl = page.url();
+    const rootPages = pages.filter(item => item.page && item.url === target.pathname.replace(/\/$/, "") || (item.page && item.url === target.href.split("?")[0]));
+    const responsiveViewports = viewports.map(viewport => {
+      const root = pages.find(item => item.page && item.viewport.name === viewport.name);
+      return root ? {
+        name: viewport.name,
+        width: viewport.width,
+        height: viewport.height,
+        documentWidth: root.page.document.scrollWidth,
+        documentHeight: root.page.document.scrollHeight,
+        horizontalOverflow: root.page.document.scrollWidth > viewport.width,
+        headingCount: root.page.counts.headings,
+        controlCount: root.page.counts.controls,
+        linkCount: root.page.counts.links
+      } : { name: viewport.name, unavailable: true };
+    });
+    const firstResponsive = responsiveViewports[0];
+    const responsiveComparison = {
+      method: "structural viewport comparison; not a pixel-diff",
+      viewports: responsiveViewports,
+      differences: responsiveViewports.length > 1 && responsiveViewports.every(item => !item.unavailable) ? {
+        headingCountDelta: responsiveViewports[1].headingCount - firstResponsive.headingCount,
+        controlCountDelta: responsiveViewports[1].controlCount - firstResponsive.controlCount,
+        horizontalOverflowViewports: responsiveViewports.filter(item => item.horizontalOverflow).map(item => item.name)
+      } : null
+    };
     evidence.unshift(
-      createRuntimeEvidence({ classification: "observed", sourceUrl: finalUrl, detail: "Rendered page title: " + (latestPage.title || "(no title)") }),
-      createRuntimeEvidence({ classification: "observed", sourceUrl: finalUrl, detail: "Captured rendered DOM, visible controls, headings, links, forms, accessibility nodes and viewport screenshots." })
+      createRuntimeEvidence({ classification: "observed", sourceUrl: finalUrl, detail: "Captured " + pages.filter(item => item.page).length + " rendered page/viewport combinations." }),
+      createRuntimeEvidence({ classification: "derived", sourceUrl: target.href, detail: "Responsive layout comparison uses viewport dimensions, document overflow and visible structure counts; it is not a pixel-level visual diff." })
     );
     return {
       mode: "runtime-browser",
@@ -267,31 +389,47 @@ export async function runtimeInspectWebsite(env, input) {
       durationMs: Date.now() - startedAt,
       target: plan.target,
       finalUrl: finalUrl.split("?")[0],
-      viewport,
-      navigationStatus: navigation?.status() ?? null,
+      viewport: viewports[0],
+      viewports,
+      navigationStatus,
       initialPage,
       page: latestPage,
+      pages,
       initialAccessibility,
       accessibility: latestAccessibility,
       actions: actionResults,
       console: consoleMessages,
       network: networkEvents,
-      initialScreenshot,
+      initialScreenshot: screenshots[0].screenshot,
+      screenshots,
       screenshot: finalScreenshot,
+      responsiveComparison,
       evidence,
       coverage: {
         classification: "observed",
-        description: requestedActions.length ? "A real isolated browser captured the initial page and bounded before/after states for explicitly approved actions." : "A real isolated browser rendered the page and captured its initial state.",
+        description: "A real isolated browser captured a bounded same-origin page inventory and structural viewport comparison, plus explicitly approved interactions when requested.",
         limitations: [
-          "Actions are limited to explicitly approved clicks on labelled non-submit buttons/tabs outside forms, hover over captured controls, safe navigation keys and bounded scrolling.",
+          "The runtime crawl follows only discovered same-origin HTTPS anchor links, removes query strings and fragments, and skips common static-asset extensions.",
+          "The crawl is bounded to four page/viewport captures total; when two viewports are requested, no more than two pages are captured at each viewport.",
+          "Robots.txt disallow paths are excluded from the crawl. Only wildcard user-agent rules are currently interpreted.",
+          "Actions apply only to the initial page at the first requested viewport.",
+          "Responsive comparison is structural (dimensions, overflow and visible element counts), not a pixel-level screenshot diff.",
           "Text entry, Enter/Space activation, form submission, downloads, popups and cross-origin navigation are not supported.",
           "Same-origin JavaScript may still issue side-effecting GET requests; inspect only targets you own or are authorized to test.",
-          "For network safety, only same-origin HTTP(S) page resources were allowed; cross-origin scripts, fonts, images and APIs were blocked and may affect visual fidelity.",
+          "Only same-origin HTTPS page resources were allowed; cross-origin scripts, fonts, images and APIs were blocked and may affect visual fidelity.",
           "The browser session is unauthenticated and ephemeral. No existing browser profile, cookies or local files were accessed.",
           "DOM, accessibility, console and network capture are bounded and may be truncated.",
           "Browser Run's Free plan includes 10 minutes of browser use per day; availability ends when the daily quota is exhausted."
         ],
-        truncated: { dom: latestPage.domTruncated, accessibility: latestAccessibility.length >= MAX_ACCESSIBILITY_NODES, console: consoleMessages.length >= MAX_CONSOLE, network: networkEvents.length >= MAX_REQUESTS, actions: Array.isArray(input?.actions) && input.actions.length > MAX_ACTIONS_PER_RUN }
+        truncated: {
+          dom: pages.some(item => item.page?.domTruncated),
+          accessibility: pages.some(item => item.accessibility?.length >= MAX_ACCESSIBILITY_NODES),
+          console: consoleMessages.length >= MAX_CONSOLE,
+          network: networkEvents.length >= MAX_REQUESTS,
+          actions: Array.isArray(input?.actions) && input.actions.length > MAX_ACTIONS_PER_RUN,
+          pages: pages.filter(item => item.page).length >= effectiveMaxPages * viewports.length
+        },
+        robotsSkipped: skippedByRobots
       }
     };
   } finally {
