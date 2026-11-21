@@ -28,7 +28,7 @@
 
 - The runtime provider has not yet been deployed or exercised against a real Browser Run session.
 - DNS/IP pinning and provider-level egress enforcement require a security review before enabling hosted runtime for general public use. Same-origin request interception is an additional restriction, not a substitute for DNS-rebinding protection.
-- Workbench runtime controls and screenshot/evidence bundle export.
+- Hosted workbench runtime mode with viewport selection, screenshot gallery and JSON evidence export. The endpoint remains gated by the default-off flag and exact operator hostname allowlist.
 - Local Playwright companion for private websites, installed apps and local files.
 - Authenticated/private application sessions, private backend source or database introspection, active API probing, full AST analysis, Electron/native/runtime binary inspection, 3D graph and code generation.
 - Production-grade global rate limiting, user authentication and abuse monitoring.
