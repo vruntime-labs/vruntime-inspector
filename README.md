@@ -211,7 +211,7 @@ node apps/cli/src/index.js analyze-js ./src/main.js
 
 Open http://127.0.0.1:4173 for the standalone workbench. Import a .har file up to 10 MiB to inventory captured requests and inspect redacted metadata.
 
-See [Development](README-DEV.md), [Implementation Status](docs/IMPLEMENTATION_STATUS.md), and [Cloud Workbench details](apps/cloudflare/README.md) for exact scope and limitations. The JavaScript scanner is currently regex-based, not a full AST parser. Initial rendered-browser capture is implemented in the runtime-investigation feature branch but is not deployed or verified against a live Browser Run session yet. Persistent runtime evidence storage, runtime workbench controls, local browser support, full backend inspection, code generation and the other inspection domains are not shipped yet.
+See [Development](README-DEV.md), [Implementation Status](docs/IMPLEMENTATION_STATUS.md), and [Cloud Workbench details](apps/cloudflare/README.md) for exact scope and limitations. The JavaScript scanner is currently regex-based, not a full AST parser. Initial rendered-browser capture is implemented in the runtime-investigation feature branch but is not deployed or verified against a live Browser Run session yet. Persistent runtime evidence storage, local browser support, full backend inspection, code generation and the other inspection domains are not shipped yet. The hosted workbench includes a gated runtime capture panel and JSON evidence export; the panel remains unavailable until the operator enables Browser Run for an exact allowlisted hostname.
 
 ## Technical references & acknowledgements
 
