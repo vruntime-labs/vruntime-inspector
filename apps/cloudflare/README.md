@@ -51,4 +51,4 @@ Do not deploy this configuration over an unrelated Worker. Verify the target Wor
 
 ## ChatGPT Free users
 
-If your ChatGPT client does not support custom remote MCP servers, use the hosted workbench for Quick Scan and Deep Investigation, then upload the Markdown report into ChatGPT. Runtime Browser Capture is currently exposed through MCP; the web workbench UI does not yet offer it.
+If your ChatGPT client does not support custom remote MCP servers, use the hosted workbench for Quick Scan and Deep Investigation, then upload the Markdown report into ChatGPT. The workbench now includes a Runtime Browser Investigation option and JSON evidence export, but it remains disabled unless the operator configures the Browser Run binding, explicitly enables runtime, and allowlists the exact target hostname.
