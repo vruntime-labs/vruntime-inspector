@@ -4,7 +4,7 @@ import {
   classifyRuntimeAction, createRuntimeEvidence, createRuntimeInspectionPlan,
   normalizeRuntimeLimits, normalizeViewport, redactRuntimeUrl, validateRuntimeTarget
 } from "../packages/inspector-browser/src/index.js";
-import { createBrowserRunGuardrails, discoverRuntimePageTargets, isRuntimeBrowserEnabled, runtimeInspectWebsite } from "../packages/inspector-browser/src/cloudflare.js";
+import { createBrowserRunGuardrails, discoverRuntimePageTargets, isRuntimeBrowserEnabled, launchGuardedBrowser, runtimeInspectWebsite } from "../packages/inspector-browser/src/cloudflare.js";
 
 test("creates a bounded runtime plan with default desktop viewport", () => {
   const plan = createRuntimeInspectionPlan({ url: "https://example.com/?token=private" });
@@ -82,6 +82,18 @@ test("hosted runtime is disabled by default and requires an exact configured hos
   assert.equal(isRuntimeBrowserEnabled(enabled, "www.example.com"), false);
   assert.equal(isRuntimeBrowserEnabled({ ...enabled, RUNTIME_BROWSER_ENABLED: "false" }, "example.com"), false);
   assert.deepEqual(createBrowserRunGuardrails("https://example.com/path"), { allowedDomains: ["example.com"] });
+});
+
+test("Browser Run launch always receives an exact-host guardrail", async () => {
+  let launchArgs;
+  const fakePuppeteer = {
+    launch: async (...args) => { launchArgs = args; return { id: "fake-session" }; }
+  };
+  const target = new URL("https://owned.example.com/path");
+  const result = await launchGuardedBrowser({ BROWSER: "binding" }, target, fakePuppeteer);
+  assert.deepEqual(result, { id: "fake-session" });
+  assert.equal(launchArgs[0], "binding");
+  assert.deepEqual(launchArgs[1], { guardrails: { allowedDomains: ["owned.example.com"] } });
 });
 
 test("runtime provider refuses to launch without a browser binding", async () => {
