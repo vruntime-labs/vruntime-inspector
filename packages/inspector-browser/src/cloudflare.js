@@ -209,6 +209,11 @@ export function discoverRuntimePageTargets(links, baseUrl, maxTargets = 3, disal
   return found;
 }
 
+export async function launchGuardedBrowser(env, target, puppeteerModule) {
+  const puppeteer = puppeteerModule ?? (await import("@cloudflare/puppeteer")).default;
+  return puppeteer.launch(env.BROWSER, { guardrails: createBrowserRunGuardrails(target) });
+}
+
 export async function runtimeInspectWebsite(env, input) {
   if (!env?.BROWSER) {
     const error = new Error("Hosted runtime browser is not configured. The Browser Run binding is missing; static inspection remains available.");
@@ -239,8 +244,7 @@ export async function runtimeInspectWebsite(env, input) {
   const disallowedPaths = Array.isArray(input?.disallowedPaths) ? input.disallowedPaths.filter(value => typeof value === "string").slice(0, 100) : [];
   if (disallowedPaths.some(rule => rule === "/" || (rule && target.pathname.startsWith(rule)))) throw new Error("Runtime inspection skipped because robots.txt disallows this path.");
   const waitAfterLoadMs = Math.max(0, Math.min(5000, Number(input?.waitAfterLoadMs ?? 1200)));
-  const { default: puppeteer } = await import("@cloudflare/puppeteer");
-  const browser = await puppeteer.launch(env.BROWSER, { guardrails: createBrowserRunGuardrails(target) });
+  const browser = await launchGuardedBrowser(env, target);
   const startedAt = Date.now();
   const consoleMessages = [];
   const networkEvents = [];
