@@ -26,6 +26,10 @@ test("serves health and hosted workbench", async () => {
   assert.match(await page.text(), /Start a website inspection/);
   assert.match(await page.text(), /Runtime Browser Investigation/);
   assert.match(await page.text(), /DOWNLOAD EVIDENCE/);
+  const pageHtml = await page.text();
+  const inlineScript = pageHtml.match(/<script>([\\s\\S]*?)<\\/script>/)?.[1];
+  assert.ok(inlineScript);
+  assert.doesNotThrow(() => new Function(inlineScript));
   assert.equal(typeof worker.fetch, "function");
 });
 
