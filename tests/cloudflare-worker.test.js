@@ -23,8 +23,30 @@ test("serves health and hosted workbench", async () => {
   assert.equal((await health.json()).service, "vruntime-inspector-cloud");
   const page = await handleRequest(new Request("https://inspector.example/"));
   assert.equal(page.status, 200);
-  assert.match(await page.text(), /Start a website inspection/);
+  const pageHtml = await page.text();
+  assert.match(pageHtml, /Start a website inspection/);
+  assert.match(pageHtml, /Runtime Browser Investigation/);
+  assert.match(pageHtml, /DOWNLOAD EVIDENCE/);
+  const inlineScript = pageHtml.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+  assert.ok(inlineScript);
+  assert.doesNotThrow(() => new Function(inlineScript));
   assert.equal(typeof worker.fetch, "function");
+});
+
+test("workbench runtime API stays disabled unless an exact host is operator-allowlisted", async () => {
+  const request = () => new Request("https://inspector.example/api/runtime-inspect", {
+    method: "POST",
+    headers: { "content-type": "application/json", "CF-Connecting-IP": "198.51.100.41" },
+    body: JSON.stringify({ url: "https://sample.example/", viewport: "desktop", maxPages: 1 })
+  });
+  const bindingOnly = await handleRequest(request(), { BROWSER: {} });
+  assert.equal(bindingOnly.status, 400);
+  assert.match((await bindingOnly.json()).error, /disabled or this hostname is not in the operator allowlist/);
+  const wrongHost = await handleRequest(request(), {
+    BROWSER: {}, RUNTIME_BROWSER_ENABLED: "true", RUNTIME_BROWSER_ALLOWED_HOSTS: "owned.example.com"
+  });
+  assert.equal(wrongHost.status, 400);
+  assert.match((await wrongHost.json()).error, /operator allowlist/);
 });
 
 test("rejects local and IP-literal targets before network access", async () => {
@@ -117,6 +139,12 @@ test("implements modern MCP discovery and tool listing", async () => {
   assert.ok(tools.some(tool => tool.name === "inspect_website"));
   assert.ok(tools.some(tool => tool.name === "deep_investigate_website"));
   assert.ok(tools.some(tool => tool.name === "get_inspector_capabilities"));
+  const runtimeTool = tools.find(tool => tool.name === "runtime_inspect_website");
+  assert.ok(runtimeTool);
+  assert.equal(runtimeTool.inputSchema.properties.actions.maxItems, 8);
+  assert.equal(runtimeTool.inputSchema.properties.maxPages.maximum, 4);
+  assert.equal(runtimeTool.inputSchema.properties.viewports.maxItems, 2);
+  assert.deepEqual(runtimeTool.inputSchema.properties.actions.items.properties.type.enum, ["click", "hover", "press", "scroll"]);
 });
 
 test("executes inspect_website through MCP and returns structured content", async () => {
@@ -135,6 +163,33 @@ test("rejects a mismatched MCP tool-name header and untrusted Origin", async () 
   assert.equal(mismatch.status, 400);
   const origin = await handleRequest(new Request("https://inspector.example/mcp", { method: "POST", headers: { origin: "https://evil.example", "content-type": "application/json" }, body: "{}" }));
   assert.equal(origin.status, 403);
+});
+
+
+test("runtime MCP tool reports an unconfigured browser provider without launching a session", async () => {
+  const meta = { "io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientInfo": { name: "test", version: "1" }, "io.modelcontextprotocol/clientCapabilities": {} };
+  const response = await handleRequest(new Request("https://inspector.example/mcp", {
+    method: "POST",
+    headers: { "content-type": "application/json", "MCP-Protocol-Version": "2026-07-28", "Mcp-Method": "tools/call", "Mcp-Name": "runtime_inspect_website", "CF-Connecting-IP": "198.51.100.40" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 40, method: "tools/call", params: { name: "runtime_inspect_website", arguments: { url: "https://sample.example/", viewport: "desktop" }, _meta: meta } })
+  }), {});
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.result.isError, true);
+  assert.match(payload.result.content[0].text, /Hosted runtime is disabled or this hostname is not in RUNTIME_BROWSER_ALLOWED_HOSTS/);
+  assert.equal(payload.result.ttlMs, 0);
+  assert.equal(payload.result.cacheScope, "none");
+});
+
+test("health reports runtime browser mode only when explicitly enabled with an allowlist", async () => {
+  const unavailable = await handleRequest(new Request("https://inspector.example/api/health"));
+  assert.deepEqual((await unavailable.json()).modes, ["quick", "deep-static"]);
+  const bindingOnly = await handleRequest(new Request("https://inspector.example/api/health"), { BROWSER: {} });
+  assert.deepEqual((await bindingOnly.json()).modes, ["quick", "deep-static"]);
+  const configured = await handleRequest(new Request("https://inspector.example/api/health"), {
+    BROWSER: {}, RUNTIME_BROWSER_ENABLED: "true", RUNTIME_BROWSER_ALLOWED_HOSTS: "example.com"
+  });
+  assert.deepEqual((await configured.json()).modes, ["quick", "deep-static", "runtime-browser"]);
 });
 
 test.after(() => { globalThis.fetch = originalFetch; });
