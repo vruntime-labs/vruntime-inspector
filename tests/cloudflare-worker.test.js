@@ -24,7 +24,25 @@ test("serves health and hosted workbench", async () => {
   const page = await handleRequest(new Request("https://inspector.example/"));
   assert.equal(page.status, 200);
   assert.match(await page.text(), /Start a website inspection/);
+  assert.match(await page.text(), /Runtime Browser Investigation/);
+  assert.match(await page.text(), /DOWNLOAD EVIDENCE/);
   assert.equal(typeof worker.fetch, "function");
+});
+
+test("workbench runtime API stays disabled unless an exact host is operator-allowlisted", async () => {
+  const request = () => new Request("https://inspector.example/api/runtime-inspect", {
+    method: "POST",
+    headers: { "content-type": "application/json", "CF-Connecting-IP": "198.51.100.41" },
+    body: JSON.stringify({ url: "https://sample.example/", viewport: "desktop", maxPages: 1 })
+  });
+  const bindingOnly = await handleRequest(request(), { BROWSER: {} });
+  assert.equal(bindingOnly.status, 400);
+  assert.match((await bindingOnly.json()).error, /disabled or this hostname is not in the operator allowlist/);
+  const wrongHost = await handleRequest(request(), {
+    BROWSER: {}, RUNTIME_BROWSER_ENABLED: "true", RUNTIME_BROWSER_ALLOWED_HOSTS: "owned.example.com"
+  });
+  assert.equal(wrongHost.status, 400);
+  assert.match((await wrongHost.json()).error, /operator allowlist/);
 });
 
 test("rejects local and IP-literal targets before network access", async () => {
