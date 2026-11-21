@@ -23,10 +23,10 @@ test("serves health and hosted workbench", async () => {
   assert.equal((await health.json()).service, "vruntime-inspector-cloud");
   const page = await handleRequest(new Request("https://inspector.example/"));
   assert.equal(page.status, 200);
-  assert.match(await page.text(), /Start a website inspection/);
-  assert.match(await page.text(), /Runtime Browser Investigation/);
-  assert.match(await page.text(), /DOWNLOAD EVIDENCE/);
   const pageHtml = await page.text();
+  assert.match(pageHtml, /Start a website inspection/);
+  assert.match(pageHtml, /Runtime Browser Investigation/);
+  assert.match(pageHtml, /DOWNLOAD EVIDENCE/);
   const inlineScript = pageHtml.match(/<script>([\s\S]*?)<\/script>/)?.[1];
   assert.ok(inlineScript);
   assert.doesNotThrow(() => new Function(inlineScript));
